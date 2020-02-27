@@ -60,7 +60,7 @@ Section Maps.
   Qed.
 
   Fixpoint to_list (m : addr_map) : list (nat * Z)%type:=
-n    match m with
+    match m with
     | mnil => nil
     | mcons k v tl => cons (k,v) (to_list tl)
     end.

@@ -66,7 +66,7 @@ Module CrowdfundingContract.
                | Just v ->
                  let newmap : Map := madd sender (v + tx_amount) accs in
                  Just (Pair (mkState (tx_amount + bal) newmap own (deadline s) (done s) (goal s))
-         nnn                   Nil)
+                            Nil)
                | Nothing ->
                  let newmap : Map := madd sender tx_amount accs in
                  Just (Pair (mkState (tx_amount + bal) newmap own (deadline s) (done s) (goal s))
