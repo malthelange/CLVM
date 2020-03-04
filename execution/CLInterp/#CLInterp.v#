@@ -184,7 +184,7 @@ Definition updated : ExtMap := FMap.add ((LabZ 1), 1) (ZVal 20) empt.
 Fixpoint adv_map_aux (l : list (ObsLabel * Z * Val)) (d : Z) :=
   match l with
   | [] => []
-  | (l , z , v)::tl => (l, z + d, v)::(adv_map_aux tl d)
+  | (l , z , v)::tl => (l, z - d, v)::(adv_map_aux tl d)
   end.
                
 
@@ -487,12 +487,6 @@ Fixpoint Csem (c : Contr) (env : Env) (ext : ExtEnv) : option Trace :=
       CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = vmE expis env extM.
   Proof.
     intro.  induction e; intros.
-    - admit.
-    - inversion H. cbn. unfold ExtMap_to_ExtEnv. destruct (FMap.find (l,i) extM) eqn:Eq.
-      + unfold find_default. rewrite Eq. reflexivity.
-      + unfold find_default. rewrite Eq. reflexivity.
-    - inversion H. unfold Esem. unfold vmE. unfold StackEInterp. cbn. rewrite <- lookupTranslateSound.
-      destruct (lookupEnv v env); reflexivity.
     - Admitted.
       
 
@@ -557,17 +551,22 @@ match t with
 | None => None end
 .
 
-Lemma c1 : lookupTrace (Csem c_exmp1 [] ext_exmp1) 1 p1 p2 = lookupTrace (CompileRunC c_exmp1 [] extm_exmp1) 1 p1 p2.
-  Proof. reflexivity. Qed.
+Compute lookupTrace (CompileRunC c_exmp1 [] extm_exmp1) 1 p1 p2 DKK.
+Compute lookupTrace (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) 1 p1 p2 DKK.
 
-  Lemma c2 : (Csem c_exmp2 [] ext_exmp1) =  (CompileRunC c_exmp2 [] ext_exmp1).
+(** ERROR HERE find_default returns Defualt when it is not supposed to *)
+
+Lemma c1 : (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) =  (CompileRunC c_exmp1 [] extm_exmp1) .
+Proof. reflexivity. Qed.
+
+  Lemma c2 : (Csem c_exmp2 [] ext_exmp1) =  (CompileRunC c_exmp2 [] extm_exmp1).
     Proof. reflexivity. Qed.
 
- Lemma c3 : (Csem c_exmp3 [] ext_exmp1) = (CompileRunC c_exmp3 [] ext_exmp1).
+ Lemma c3 : (Csem c_exmp3 [] ext_exmp1) = (CompileRunC c_exmp3 [] extm_exmp1).
 Proof. reflexivity. Qed.
-Lemma c4 : (Csem c_exmp4 [] ext_exmp1) = (CompileRunC c_exmp4 [] ext_exmp1) .
+Lemma c4 : (Csem c_exmp4 [] ext_exmp1) = (CompileRunC c_exmp4 [] extm_exmp1) .
 Proof. reflexivity. Qed.
-Lemma c5 : (Csem std_option [] ext_exmp1) = (CompileRunC std_option [] ext_exmp1).
+Lemma c5 : (Csem std_option [] ext_exmp1) = (CompileRunC std_option [] extm_exmp1).
 Proof. reflexivity. Qed.
 
 Compute lookupTrace (Csem std_option [] ext_exmp1) 1 p1 p2 DKK.
@@ -604,16 +603,13 @@ Compute lookupTrace (Csem let_option [] ext_exmp1) .
 
     Program Instance Op_serializable : Serializable Op :=
       Derive Serializable Op_rect <Add, Sub, Mult, Div, And, Or, Less, Leq, Equal, Not, Neg, BLit, ZLit, Cond>.
-    Program Instance Obs_serializable : Serializable ObsLabel :=
-      Derive Serializable ObsLabel_rect<LabZ, LabB>.
     Program Instance instruction_serializable : Serializable instruction :=
       Derive Serializable instruction_rect<IPushZ, IPushB, IObs, IOp, IAcc, IVar>.
     Program Instance asset_serializable : Serializable Asset :=
     Derive Serializable Asset_rect<DKK, USD>.
     Program Instance party_serializable : Serializable Party :=
       Derive Serializable Party_rect<PartyN>.
-    Program Instance Val_Serializable : Serializable Val :=
-      Derive Serializable Val_rect<BVal, ZVal>.
+    
     Program Instance Env_Serializable : Serializable Env := _.
 
 
@@ -622,7 +618,6 @@ Compute lookupTrace (Csem let_option [] ext_exmp1) .
 
     Instance SetupSerial : Serializable Setup :=
       Derive Serializable Setup_rect<build_setup>.
-
 
     Instance TransSerial : Serializable Trans :=
       Derive Serializable Trans_rect.
