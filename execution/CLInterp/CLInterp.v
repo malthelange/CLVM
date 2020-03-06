@@ -44,6 +44,8 @@ Program Instance party_serializable : Serializable Party :=
 
 Inductive ObsLabel : Set := LabZ (l: Z) | LabB (l: Z).
 
+(** TODO: REFACTOR Proof of countable and decideable equality from serialization to nat *)
+
 Definition to_sum (t : ObsLabel) :=
   match t with
   | LabZ l => inl l
@@ -94,12 +96,46 @@ Proof.
   now destruct p.
 Qed.
 
+
+
 Lemma to_int_injective x y  : to_nat x = to_nat y ->
                               x = y.
 Proof. intros.
        assert (of_nat (to_nat x) = of_nat (to_nat y)) by congruence. now rewrite !of_to_nat in H0.
 Qed.
 
+Definition to_natA (a : Asset) :=
+  match a with
+  | DKK => 0%nat
+  | USD => 1%nat
+  end.
+
+Definition of_natA (n : nat) :=
+  match n with
+  | 0%nat => DKK
+  | _ => USD
+  end.
+
+Lemma of_to_natA a : of_natA (to_natA a) = a.
+Proof.
+  now destruct a.
+Qed.
+
+Lemma to_natA_injective x y  : to_natA x = to_natA y ->
+                              x = y.
+Proof. intros.
+       assert (of_natA (to_natA x) = of_natA (to_natA y)) by congruence. now rewrite !of_to_natA in H0.
+Qed.
+
+Instance Asset_eqdec : stdpp.base.EqDecision Asset.
+Proof.
+  intros x y.
+  unfold base.Decision.
+  destruct (stdpp.base.decide (to_natA x = to_natA y)).
+  - left; apply to_natA_injective; auto.
+  - right; intros xney.
+    subst x. congruence.
+Defined.
 Instance Party_eqdec : stdpp.base.EqDecision Party.
 Proof.
   intros x y.
@@ -128,6 +164,16 @@ Proof.
                                               Some (of_nat zz) |}.
   intros x. rewrite countable.decode_encode. cbn. now rewrite of_to_nat.
 Defined.
+
+
+Instance Asset_countable : countable.Countable Asset.
+Proof.
+  refine {| countable.encode t := countable.encode (to_natA t);
+                     countable.decode p := do zz <- countable.decode p;
+                                              Some (of_natA zz) |}.
+  intros x. rewrite countable.decode_encode. cbn. now rewrite of_to_natA.
+Defined.
+
 
 Program Instance Obs_serializable : Serializable ObsLabel :=
       Derive Serializable ObsLabel_rect<LabZ, LabB>.
@@ -282,7 +328,7 @@ Fixpoint Esem (e : Exp) (env : Env) (ext : ExtEnv) : option Val :=
 where "'E[|' e '|]'" := (Esem e ).
 
 Definition Trans := Party -> Party -> Asset -> Z.
-Definition TransM := FMap Party Asset.
+Definition TransM := FMap Party (FMap Party (FMap Asset Z)).
 
 Definition empty_trans : Trans := fun p1 p2 c => 0.
 (** TODO: Make party a part of the Eqb class to simplify *)
