@@ -38,6 +38,8 @@ Definition eqbA (a1 : Asset) (a2 : Asset)  : bool :=
 Inductive Party :=
 | PartyN : nat -> Party.
 
+Program Instance party_serializable : Serializable Party :=
+  Derive Serializable Party_rect<PartyN>.
 
 
 Inductive ObsLabel : Set := LabZ (l: Z) | LabB (l: Z).
@@ -69,7 +71,7 @@ Proof.
   now rewrite !of_to_sum in H.
 Qed.
 
-Instance T_eqdec : stdpp.base.EqDecision ObsLabel.
+Instance Obs_eqdec : stdpp.base.EqDecision ObsLabel.
 Proof.
   intros x y.
   unfold base.Decision.
@@ -80,7 +82,35 @@ Proof.
     congruence.
 Defined.
 
-Instance T_countable : countable.Countable ObsLabel.
+Definition to_nat (p : Party) :=
+  match p with
+  | PartyN n => n
+  end.
+
+Definition of_nat (n : nat) := PartyN n.
+
+Lemma of_to_nat p : of_nat (to_nat p) = p.
+Proof.
+  now destruct p.
+Qed.
+
+Lemma to_int_injective x y  : to_nat x = to_nat y ->
+                              x = y.
+Proof. intros.
+       assert (of_nat (to_nat x) = of_nat (to_nat y)) by congruence. now rewrite !of_to_nat in H0.
+Qed.
+
+Instance Party_eqdec : stdpp.base.EqDecision Party.
+Proof.
+  intros x y.
+  unfold base.Decision.
+  destruct (stdpp.base.decide (to_nat x = to_nat y)).
+  - left; apply to_int_injective; auto.
+  - right; intros xney.
+    subst x. congruence.
+Defined.
+
+Instance Obs_countable : countable.Countable ObsLabel.
 Proof.
   refine {| countable.encode t := countable.encode (to_sum t);
                      countable.decode p := do zz <- countable.decode p;
@@ -89,6 +119,14 @@ Proof.
   rewrite countable.decode_encode.
   cbn.
   now rewrite of_to_sum.
+Defined.
+
+Instance Party_countable : countable.Countable Party.
+Proof.
+  refine {| countable.encode t := countable.encode (to_nat t);
+                     countable.decode p := do zz <- countable.decode p;
+                                              Some (of_nat zz) |}.
+  intros x. rewrite countable.decode_encode. cbn. now rewrite of_to_nat.
 Defined.
 
 Program Instance Obs_serializable : Serializable ObsLabel :=
@@ -184,7 +222,7 @@ Definition updated : ExtMap := FMap.add ((LabZ 1), 1) (ZVal 20) empt.
 Fixpoint adv_map_aux (l : list (ObsLabel * Z * Val)) (d : Z) :=
   match l with
   | [] => []
-  | (l , z , v)::tl => (l, z + d, v)::(adv_map_aux tl d)
+  | (l , z , v)::tl => (l, z - d, v)::(adv_map_aux tl d)
   end.
                
 
@@ -244,6 +282,7 @@ Fixpoint Esem (e : Exp) (env : Env) (ext : ExtEnv) : option Val :=
 where "'E[|' e '|]'" := (Esem e ).
 
 Definition Trans := Party -> Party -> Asset -> Z.
+Definition TransM := FMap Party Asset.
 
 Definition empty_trans : Trans := fun p1 p2 c => 0.
 (** TODO: Make party a part of the Eqb class to simplify *)
@@ -487,12 +526,6 @@ Fixpoint Csem (c : Contr) (env : Env) (ext : ExtEnv) : option Trace :=
       CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = vmE expis env extM.
   Proof.
     intro.  induction e; intros.
-    - admit.
-    - inversion H. cbn. unfold ExtMap_to_ExtEnv. destruct (FMap.find (l,i) extM) eqn:Eq.
-      + unfold find_default. rewrite Eq. reflexivity.
-      + unfold find_default. rewrite Eq. reflexivity.
-    - inversion H. unfold Esem. unfold vmE. unfold StackEInterp. cbn. rewrite <- lookupTranslateSound.
-      destruct (lookupEnv v env); reflexivity.
     - Admitted.
       
 
@@ -557,17 +590,22 @@ match t with
 | None => None end
 .
 
-Lemma c1 : lookupTrace (Csem c_exmp1 [] ext_exmp1) 1 p1 p2 = lookupTrace (CompileRunC c_exmp1 [] extm_exmp1) 1 p1 p2.
-  Proof. reflexivity. Qed.
+Compute lookupTrace (CompileRunC c_exmp1 [] extm_exmp1) 1 p1 p2 DKK.
+Compute lookupTrace (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) 1 p1 p2 DKK.
 
-  Lemma c2 : (Csem c_exmp2 [] ext_exmp1) =  (CompileRunC c_exmp2 [] ext_exmp1).
+(** ERROR HERE find_default returns Defualt when it is not supposed to *)
+
+Lemma c1 : (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) =  (CompileRunC c_exmp1 [] extm_exmp1) .
+Proof. reflexivity. Qed.
+
+  Lemma c2 : (Csem c_exmp2 [] ext_exmp1) =  (CompileRunC c_exmp2 [] extm_exmp1).
     Proof. reflexivity. Qed.
 
- Lemma c3 : (Csem c_exmp3 [] ext_exmp1) = (CompileRunC c_exmp3 [] ext_exmp1).
+ Lemma c3 : (Csem c_exmp3 [] ext_exmp1) = (CompileRunC c_exmp3 [] extm_exmp1).
 Proof. reflexivity. Qed.
-Lemma c4 : (Csem c_exmp4 [] ext_exmp1) = (CompileRunC c_exmp4 [] ext_exmp1) .
+Lemma c4 : (Csem c_exmp4 [] ext_exmp1) = (CompileRunC c_exmp4 [] extm_exmp1) .
 Proof. reflexivity. Qed.
-Lemma c5 : (Csem std_option [] ext_exmp1) = (CompileRunC std_option [] ext_exmp1).
+Lemma c5 : (Csem std_option [] ext_exmp1) = (CompileRunC std_option [] extm_exmp1).
 Proof. reflexivity. Qed.
 
 Compute lookupTrace (Csem std_option [] ext_exmp1) 1 p1 p2 DKK.
@@ -604,16 +642,12 @@ Compute lookupTrace (Csem let_option [] ext_exmp1) .
 
     Program Instance Op_serializable : Serializable Op :=
       Derive Serializable Op_rect <Add, Sub, Mult, Div, And, Or, Less, Leq, Equal, Not, Neg, BLit, ZLit, Cond>.
-    Program Instance Obs_serializable : Serializable ObsLabel :=
-      Derive Serializable ObsLabel_rect<LabZ, LabB>.
     Program Instance instruction_serializable : Serializable instruction :=
       Derive Serializable instruction_rect<IPushZ, IPushB, IObs, IOp, IAcc, IVar>.
     Program Instance asset_serializable : Serializable Asset :=
     Derive Serializable Asset_rect<DKK, USD>.
-    Program Instance party_serializable : Serializable Party :=
-      Derive Serializable Party_rect<PartyN>.
-    Program Instance Val_Serializable : Serializable Val :=
-      Derive Serializable Val_rect<BVal, ZVal>.
+
+    
     Program Instance Env_Serializable : Serializable Env := _.
 
 
@@ -622,7 +656,6 @@ Compute lookupTrace (Csem let_option [] ext_exmp1) .
 
     Instance SetupSerial : Serializable Setup :=
       Derive Serializable Setup_rect<build_setup>.
-
 
     Instance TransSerial : Serializable Trans :=
       Derive Serializable Trans_rect.
