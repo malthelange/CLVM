@@ -281,8 +281,6 @@ Definition adv_map (d : Z) (e : ExtMap) : ExtMap
 *)
 
 
-
-
 Reserved Notation "'E[|' e '|]'" (at level 9).
 
 Definition OpSem (op : Op) (vs : list Val) : option Val :=
@@ -329,8 +327,16 @@ where "'E[|' e '|]'" := (Esem e ).
 
 Definition Trans := Party -> Party -> Asset -> Z.
 Definition TransM := FMap Party (FMap Party (FMap Asset Z)).
+Definition TraceM := FMap nat TransM.
+
+Instance asset_serializable : Serializable Asset :=
+  Derive Serializable Asset_rect<DKK, USD>.
+
+Instance TransSerial : Serializable TransM := _.
+Instance TraceSerial : Serializable TraceM := _.
 
 Definition empty_trans : Trans := fun p1 p2 c => 0.
+Definition empty_transM : TransM := FMap.empty.
 (** TODO: Make party a part of the Eqb class to simplify *)
 Definition singleton_trans (p1 p2 : Party) (a : Asset) (z: Z) : Trans :=
   match p1, p2 with
@@ -344,9 +350,43 @@ Definition singleton_trans (p1 p2 : Party) (a : Asset) (z: Z) : Trans :=
                                                      else 0
                                               end
   end.
+
+
+Definition singleton_transM (p1 p2 : Party) (a : Asset) (z: Z) : TransM :=
+  match p1, p2 with
+  | PartyN pn1, PartyN pn2 => if (pn1 =? pn2)%nat then FMap.empty else
+                               let azp : FMap Asset Z := FMap.add a z FMap.empty in
+                               let azm : FMap Asset Z := FMap.add a (-z) FMap.empty in
+                               let p2azp : FMap Party (FMap Asset Z) := FMap.add p2 azp FMap.empty  in
+                               let p1azm : FMap Party (FMap Asset Z) := FMap.add p1 azm FMap.empty  in
+                               let p1p2azp : TransM := FMap.add p1 p2azp FMap.empty in
+                               FMap.add p2 p1azm (p1p2azp)
+  end.
+
+
+Definition lookup_transM (p1 p2 : Party) (a : Asset) (t : TransM) :=
+  do l1 <- FMap.find p1 t ;
+  do l2 <- FMap.find p2 l1 ;
+  FMap.find a l2.
+
 Definition add_trans : Trans -> Trans -> Trans := fun t1 t2 p1 p2 c => (t1 p1 p2 c + t2 p1 p2 c).
+Definition add_transM : TransM -> TransM -> TransM :=
+  FMap.union_with (fun paz1 paz2 => Some (FMap.union_with (fun az1 az2 => Some (FMap.union_with (fun z1 z2 => Some (z1 + z2)) az1 az2) ) paz1 paz2)).
+(** Test code
+Definition p1 := PartyN 1.
+Definition p2 := PartyN 2.
+Definition p3 := PartyN 3.
+
+Definition t1 := singleton_transM p1 p2 DKK 1.
+Definition t2 := singleton_transM p1 p2 DKK 2.
+Definition u12 := add_transM t1 t2.
+Compute lookup_transM p1 p2 DKK u12.
+ *)
+
 Definition scale_trans : Z -> Trans -> Trans := fun s t p1 p2 c => (t p1 p2 c * s).
-Definition Trace := nat -> Trans.
+
+Definition Trace := nat -> Trans. 
+
 
 
 
@@ -690,12 +730,8 @@ Compute lookupTrace (Csem let_option [] ext_exmp1) .
       Derive Serializable Op_rect <Add, Sub, Mult, Div, And, Or, Less, Leq, Equal, Not, Neg, BLit, ZLit, Cond>.
     Program Instance instruction_serializable : Serializable instruction :=
       Derive Serializable instruction_rect<IPushZ, IPushB, IObs, IOp, IAcc, IVar>.
-    Program Instance asset_serializable : Serializable Asset :=
-    Derive Serializable Asset_rect<DKK, USD>.
-
     
     Program Instance Env_Serializable : Serializable Env := _.
-
 
     Instance CInstruction_serializable : Serializable CInstruction := 
       Derive Serializable CInstruction_rect< CIZero, CITransfer, CIScale, CIBoth, CITranslate, CILet, CIIf>.
@@ -703,8 +739,6 @@ Compute lookupTrace (Csem let_option [] ext_exmp1) .
     Instance SetupSerial : Serializable Setup :=
       Derive Serializable Setup_rect<build_setup>.
 
-    Instance TransSerial : Serializable Trans :=
-      Derive Serializable Trans_rect.
 
     Instance StateSerial : Serializable State :=
       Derive Serializable State_rect<build_state>.
