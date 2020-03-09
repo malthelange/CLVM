@@ -724,10 +724,10 @@ match t with
 | None => None end
 .
 
-Compute lookupTraceM (CompileRunC c_exmp1 [] extm_exmp1) 1 p1 p2 DKK.
+Compute lookupTraceM (CompileRunC c_exmp1 [] extm_exmp1) 0 p1 p2 DKK.
 Compute lookupTrace (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) 1 p1 p2 DKK.
 
-(** ERROR HERE find_default returns Defualt when it is not supposed to *)
+(** ERROR HERE find_default returns Default when it is not supposed to *)
 
 Lemma c1 : (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) =  (CompileRunC c_exmp1 [] extm_exmp1) .
 Proof. reflexivity. Qed.
