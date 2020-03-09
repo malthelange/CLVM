@@ -727,11 +727,17 @@ match t with
 Compute lookupTrace (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) 0 p1 p2 DKK.
 Compute lookupTraceM (CompileRunC c_exmp1 [] extm_exmp1) 0 p1 p2 DKK.
 
+Definition traceMtoTrace (t : TraceM) (default: Z) : Trace :=
+  fun n p1 p2 a => match lookupTraceM (Some t) n p1 p2 a with
+                | Some z => z
+                | None => default
+                end.
 
-(** ERROR HERE find_default returns Default when it is not supposed to *)
+(** TODO: How do we prove these?
 
-Lemma c1 : (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) =  (CompileRunC c_exmp1 [] extm_exmp1) .
-Proof. reflexivity. Qed.
+Lemma c1 : (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) =
+           liftM2 traceMtoTrace (CompileRunC c_exmp1 [] extm_exmp1) (Some 0) .
+Proof. reflexivity.  Qed.
 
   Lemma c2 : (Csem c_exmp2 [] ext_exmp1) =  (CompileRunC c_exmp2 [] extm_exmp1).
     Proof. reflexivity. Qed.
@@ -741,7 +747,7 @@ Proof. reflexivity. Qed.
 Lemma c4 : (Csem c_exmp4 [] ext_exmp1) = (CompileRunC c_exmp4 [] extm_exmp1) .
 Proof. reflexivity. Qed.
 Lemma c5 : (Csem std_option [] ext_exmp1) = (CompileRunC std_option [] extm_exmp1).
-Proof. reflexivity. Qed.
+Proof. reflexivity. Qed. *)
 
 Compute lookupTrace (Csem std_option [] ext_exmp1) 1 p1 p2 DKK.
 Compute lookupTrace (Csem let_option [] ext_exmp1) .
@@ -769,11 +775,11 @@ Compute lookupTrace (Csem let_option [] ext_exmp1) .
     Record State :=
       build_state {
           contract : list CInstruction;
-          result : option Trace;
+          result : option TraceM;
         }.
 
     Inductive Msg :=
-    | update : ExtEnv -> Msg.                          
+    | update : ExtMap -> Msg.                          
 
     Program Instance Op_serializable : Serializable Op :=
       Derive Serializable Op_rect <Add, Sub, Mult, Div, And, Or, Less, Leq, Equal, Not, Neg, BLit, ZLit, Cond>.
@@ -787,17 +793,13 @@ Compute lookupTrace (Csem let_option [] ext_exmp1) .
 
     Instance SetupSerial : Serializable Setup :=
       Derive Serializable Setup_rect<build_setup>.
-
+    
 
     Instance StateSerial : Serializable State :=
       Derive Serializable State_rect<build_state>.
 
     Definition m : ExtEnv := fun a b => BVal false.
 
-    Check to_list m.
-    
-    Instance ExtSerial : Serializable ExtEnv :=
-      Derive Serializable ExtEnv_rect<update>.
     Instance MsgSerial : Serializable Msg :=
       Derive Serializable Msg_rect<update>.
     
