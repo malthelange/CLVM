@@ -372,35 +372,41 @@ Definition lookup_transM (p1 p2 : Party) (a : Asset) (t : TransM) :=
 Definition add_trans : Trans -> Trans -> Trans := fun t1 t2 p1 p2 c => (t1 p1 p2 c + t2 p1 p2 c).
 Definition add_transM : TransM -> TransM -> TransM :=
   FMap.union_with (fun paz1 paz2 => Some (FMap.union_with (fun az1 az2 => Some (FMap.union_with (fun z1 z2 => Some (z1 + z2)) az1 az2) ) paz1 paz2)).
+
+(** TODO 
+    Refactor 
+ *)
+
+Fixpoint scale_aux3 (s : Z) (l : list (Asset * Z)) : FMap Asset Z :=
+  match l with
+  | [] => FMap.empty
+  | (a, z)::tl => FMap.add a (z * s) (scale_aux3 s tl)
+  end.
+
+Fixpoint scale_aux2 (s: Z) (l : list (Party * (FMap Asset Z))) : FMap Party (FMap Asset Z) :=
+  match l with
+  | [] => FMap.empty
+  | (p2, az)::tl => FMap.add p2 (scale_aux3 s (FMap.elements az)) (scale_aux2 s tl)
+  end.
+
+Fixpoint scale_aux1 (s: Z) (l : list (Party * (FMap Party (FMap Asset Z)))) : TransM :=
+     match l with
+     | [] => FMap.empty
+     | (p1, paz)::tl => FMap.add p1 (scale_aux2 s (FMap.elements paz)) (scale_aux1 s tl)
+     end.
+
+Fixpoint scale_transM (s : Z) (t : TransM) :=
+  scale_aux1 s (FMap.elements t).
+(** Test Code 
 Definition p1 := PartyN 1.
 Definition p2 := PartyN 2.
 Definition p3 := PartyN 3.
 
 Definition t1 := singleton_transM p1 p2 DKK 1.
-Definition t2 := singleton_transM p1 p2 DKK 2.
+Definition t2 := singleton_transM p2 p3 DKK 2.
 Definition u12 := add_transM t1 t2.
-Compute lookup_transM p1 p2 DKK u12.
-(** Alternative approach
-Definition scale_aux (s : Z) (t : TransM) := List.map (fun e : (Party * (FMap Party (FMap Asset Z))) =>
-                                                         match e with (p1,l2)  =>
-                                                                      (p1, List.map (fun e2 : Party * (FMap Asset Z) =>
-                                                                                       match e2 with | (p2,l3) =>
-                                                                                                       (p2, FMap.of_list (List.map (fun e3 : Asset * Z =>
-                                                                                                                        match e3 with | (a,z) => (a, z * s) end)
-                                                                                                                     (FMap.elements l3)) end)
-                                                                                    (FMap.elements l2)) end)
-                                                      (FMap.elements t).
-Check scale_aux. *)
-
-
-Fixpoint scale_aux1 (z: Z) (p1l : list (Party * (FMap Party (FMap Asset Z)))) : TransM :=
-     match pl with
-     | [] => FMap.empty
-     | (p1, paz)::tl => FMap.add p1 (scale_aux2 z (FMap.elemetns paz)) (scale_aux1 tl)
-    )
-
-Fixpoint scale_transM (z : Z) (t : TransM) :=
-   (FMap.elements t).
+Compute lookup_transM p1 p2 DKK (scale_transM 3 u12).
+*)
 
 Definition scale_trans : Z -> Trans -> Trans := fun s t p1 p2 c => (t p1 p2 c * s).
 
