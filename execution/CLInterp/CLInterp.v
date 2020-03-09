@@ -444,7 +444,7 @@ Definition delay_traceM (d : nat) (t : TraceM) : TraceM :=
   FMap.of_list
     (List.map (fun e : nat * TransM => match e with
                                   | (n,trans) =>
-                                    if (leb d n) then ((n - d)%nat , trans) else (n, empty_transM) end)
+                                    ((n + d)%nat, trans) end)
               (FMap.elements t)).
 
 Definition add_trace (t1 t2 : Trace) : Trace 
@@ -703,7 +703,7 @@ Fixpoint Csem (c : Contr) (env : Env) (ext : ExtEnv) : option Trace :=
  Definition extm_exmp1 : FMap (ObsLabel * Z) Val := FMap.add ((LabZ 1),4) (ZVal 20) (FMap.add ((LabB 0),4) (BVal true) (FMap.add ((LabZ 2),1) (ZVal (-4)) (FMap.add ((LabZ 1),0) (ZVal 1) (FMap.add ((LabZ 1),1) (ZVal 2) def_extM)))).
 
   Compute ext_exmp1 (LabB 0) 4.
-Definition c_exmp1 := (Translate 1 (Scale obs1 (Transfer (PartyN 1) (PartyN 2) DKK))).
+Definition c_exmp1 := (Scale obs1 (Transfer (PartyN 1) (PartyN 2) DKK)).
 Definition c_exmp2 := (Translate 1 (Scale obs2 (Transfer (PartyN 1) (PartyN 2) DKK))).
 Definition c_exmp3 := (Both c_exmp1 c_exmp2).
 Definition c_exmp4 := Translate 1 (Both ((Scale obs1 (Transfer (PartyN 1) (PartyN 2) DKK))) (Scale obs2 (Transfer (PartyN 1) (PartyN 2) DKK))).
@@ -724,8 +724,9 @@ match t with
 | None => None end
 .
 
+Compute lookupTrace (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) 0 p1 p2 DKK.
 Compute lookupTraceM (CompileRunC c_exmp1 [] extm_exmp1) 0 p1 p2 DKK.
-Compute lookupTrace (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) 1 p1 p2 DKK.
+
 
 (** ERROR HERE find_default returns Default when it is not supposed to *)
 
