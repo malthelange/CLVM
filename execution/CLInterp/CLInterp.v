@@ -327,13 +327,12 @@ where "'E[|' e '|]'" := (Esem e ).
 
 Definition Trans := Party -> Party -> Asset -> Z.
 Definition TransM := FMap Party (FMap Party (FMap Asset Z)).
-Definition TraceM := FMap nat TransM.
+
 
 Instance asset_serializable : Serializable Asset :=
   Derive Serializable Asset_rect<DKK, USD>.
 
 Instance TransSerial : Serializable TransM := _.
-Instance TraceSerial : Serializable TraceM := _.
 
 Definition empty_trans : Trans := fun p1 p2 c => 0.
 Definition empty_transM : TransM := FMap.empty.
@@ -410,31 +409,49 @@ Compute lookup_transM p1 p2 DKK (scale_transM 3 u12).
 
 Definition scale_trans : Z -> Trans -> Trans := fun s t p1 p2 c => (t p1 p2 c * s).
 
+Definition Trace := nat -> Trans.
 
-Definition Trace := nat -> Trans. 
-
-
-
+Definition TraceM := FMap nat TransM.
+Instance TraceSerial : Serializable TraceM := _.
 
 (* The following are combinators to contruct traces. *)
 
 Definition const_trace (t : Trans) : Trace := fun x => t.
 Definition empty_trace : Trace := const_trace empty_trans.
+
+Definition empty_traceM : TraceM := FMap.empty.
+
 Definition singleton_trace (t : Trans) : Trace
   := fun x => match x with 
                 | O => t
                 | _ => empty_trans
-              end.
+           end.
+
+Definition singleton_traceM (t: TransM) : TraceM := FMap.add 0%nat t empty_traceM.
+
 Definition scale_trace (s : Z) (t : Trace) : Trace
   := fun x => scale_trans s  (t x).
+
+Definition scale_tranceM (s : Z) (t: TraceM) : TraceM :=
+FMap.of_list (List.map (fun e : nat * TransM => match e with | (n,t1) => (n, (scale_transM s t1)) end) (FMap.elements t)).
 
 Definition delay_trace (d : nat) (t : Trace) : Trace :=
   fun x => if (leb d x)
            then t (x - d)%nat
         else empty_trans.
 
+Definition delay_traceM (d : nat) (t : TraceM) : TraceM :=
+  FMap.of_list
+    (List.map (fun e : nat * TransM => match e with
+                                  | (n,trans) =>
+                                    if (leb d n) then ((n - d)%nat , trans) else (n, empty_transM) end)
+              (FMap.elements t)).
+
 Definition add_trace (t1 t2 : Trace) : Trace 
   := fun x => add_trans (t1 x) (t2 x).
+
+Definition add_traceM (t1 t2 : TraceM) : TraceM :=
+  FMap.union_with (fun trans1 trans2 => Some (add_transM trans1 trans2)) t1 t2.
 
 Definition toZ (v : Val) : option Z := 
   match v with
