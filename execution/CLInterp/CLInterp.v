@@ -432,7 +432,7 @@ Definition singleton_traceM (t: TransM) : TraceM := FMap.add 0%nat t empty_trace
 Definition scale_trace (s : Z) (t : Trace) : Trace
   := fun x => scale_trans s  (t x).
 
-Definition scale_tranceM (s : Z) (t: TraceM) : TraceM :=
+Definition scale_traceM (s : Z) (t: TraceM) : TraceM :=
 FMap.of_list (List.map (fun e : nat * TransM => match e with | (n,t1) => (n, (scale_transM s t1)) end) (FMap.elements t)).
 
 Definition delay_trace (d : nat) (t : Trace) : Trace :=
@@ -616,29 +616,29 @@ Fixpoint Csem (c : Contr) (env : Env) (ext : ExtEnv) : option Trace :=
               end
     end.
 
-  Fixpoint stack_within_sem (c1 c2 : Env -> ExtMap  -> option Trace) 
-           (expis : list instruction) (i : nat)  (env : Env) (rc : ExtMap)  : option Trace 
+  Fixpoint stack_within_sem (c1 c2 : Env -> ExtMap  -> option TraceM) 
+           (expis : list instruction) (i : nat)  (env : Env) (rc : ExtMap)  : option TraceM
     := match StackEInterp expis [] env rc with
        | Some (BVal true) => c1 env rc 
        | Some (BVal false) => match i with
                              | O => c2 env rc
-                             | S j => liftM (delay_trace 1) (stack_within_sem c1 c2 expis j env (adv_map 1 rc))
+                             | S j => liftM (delay_traceM 1) (stack_within_sem c1 c2 expis j env (adv_map 1 rc))
                              end
        | _ => None
        end.
   
-  Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (Env -> ExtMap -> option Trace)) (env : Env) (ext: ExtMap) : option Trace :=
+  Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (Env -> ExtMap -> option TraceM)) (env : Env) (ext: ExtMap) : option TraceM :=
     match instrs with
     | [] => match stack with [res] => res env ext | _ => None end
     | hd::tl =>
       match hd with
-      | CIZero => StackCInterp tl ((fun e et => Some empty_trace)::stack) env ext
-      | CITransfer p1 p2 c => StackCInterp tl ((fun e et => Some(singleton_trace (singleton_trans p1 p2 c 1)))::stack) env ext
-      | CIScale expis => match stack with hd2::tl2 => StackCInterp tl ((fun e et => do z <- liftM toZ (StackEInterp expis [] e et); liftM2 scale_trace z (hd2 e et))::tl2) env ext
+      | CIZero => StackCInterp tl ((fun e et => Some empty_traceM)::stack) env ext
+      | CITransfer p1 p2 c => StackCInterp tl ((fun e et => Some(singleton_traceM (singleton_transM p1 p2 c 1)))::stack) env ext
+      | CIScale expis => match stack with hd2::tl2 => StackCInterp tl ((fun e et => do z <- liftM toZ (StackEInterp expis [] e et); liftM2 scale_traceM z (hd2 e et))::tl2) env ext
                                     | [] => None
                         end
-      | CIBoth => match stack with t1::t2::tl2 => StackCInterp tl ((fun e et => liftM2 add_trace (t1 e et) (t2 e et))::tl2) env ext | _ => None end 
-      | CITranslate n => match stack with t1::tl2 => StackCInterp tl ((fun e et => liftM (delay_trace n) (t1 e (adv_map (Z.of_nat n) et)))::tl2) env ext | _ => None end
+      | CIBoth => match stack with t1::t2::tl2 => StackCInterp tl ((fun e et => liftM2 add_traceM (t1 e et) (t2 e et))::tl2) env ext | _ => None end 
+      | CITranslate n => match stack with t1::tl2 => StackCInterp tl ((fun e et => liftM (delay_traceM n) (t1 e (adv_map (Z.of_nat n) et)))::tl2) env ext | _ => None end
       | CIIf expis n => match stack with t1::t2::tl2 => StackCInterp tl ((fun e et => stack_within_sem t1 t2 expis n e et)::tl2) env ext | _ => None end
       | CILet expis => match stack with t1::tl2
                                        => StackCInterp tl
@@ -658,10 +658,10 @@ Fixpoint Csem (c : Contr) (env : Env) (ext : ExtEnv) : option Trace :=
     - Admitted.
       
 
-  Definition vmC (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option Trace :=
+  Definition vmC (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
     StackCInterp instrs [] env ext.
 
-  Definition CompileRunC (c : Contr) (env : Env) (ext: ExtMap) : option Trace :=
+  Definition CompileRunC (c : Contr) (env : Env) (ext: ExtMap) : option TraceM :=
     do instrs <- (CompileC c) ; vmC instrs env ext.
 
 
@@ -718,8 +718,13 @@ match t with
 | Some t => Some (t n p1 p2 a)
 | None => None end
 .
+Definition lookupTraceM (t : option TraceM) (n : nat) (p1 p2 : Party) (a: Asset) : option Z :=
+match t with 
+| Some t => do trans <- FMap.find n t; lookup_transM p1 p2 a trans
+| None => None end
+.
 
-Compute lookupTrace (CompileRunC c_exmp1 [] extm_exmp1) 1 p1 p2 DKK.
+Compute lookupTraceM (CompileRunC c_exmp1 [] extm_exmp1) 1 p1 p2 DKK.
 Compute lookupTrace (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) 1 p1 p2 DKK.
 
 (** ERROR HERE find_default returns Defualt when it is not supposed to *)
