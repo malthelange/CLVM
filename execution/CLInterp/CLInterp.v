@@ -13,170 +13,11 @@ Require Import Containers.
 Require Import Serializable.
 From RecordUpdate Require Import RecordUpdate.
 Import RecordSetNotations.
+Require Import CLIPrelude.
 
 Open Scope Z.
-Inductive Val : Set := BVal : bool -> Val | ZVal : Z -> Val.
-Parameter BoolObs : Z.
-Parameter ZObs : Z.
-Parameter TVar : Set.
 
 Set Nonrecursive Elimination Schemes.
-
-Inductive Asset :=
-| DKK
-| USD.
-
-Definition eqbA (a1 : Asset) (a2 : Asset)  : bool :=
-  match a1, a2 with
-  | DKK, DKK => true
-  | USD, USD => true
-  | _,_ => false
-  end.
-
-Inductive Party :=
-| PartyN : nat -> Party.
-
-
-
-Inductive ObsLabel : Set := LabZ (l: Z) | LabB (l: Z).
-
-(** TODO: REFACTOR Proof of countable and decideable equality from serialization to nat *)
-
-Definition to_sum (t : ObsLabel) :=
-  match t with
-  | LabZ l => inl l
-  | LabB l => inr l
-  end.
-
-Definition of_sum (zz : Z + Z) : ObsLabel :=
-  match zz with
-  | inl l => LabZ l
-  | inr r => LabB r
-  end.
-
-
-Lemma of_to_sum t : of_sum (to_sum t) = t.
-Proof.
-  now destruct t.
-Qed.
-
-Lemma to_sum_injective x y :
-  to_sum x = to_sum y ->
-  x = y.
-Proof.
-  intros eq.
-  assert (of_sum (to_sum x) = of_sum (to_sum y)) by congruence.
-  now rewrite !of_to_sum in H.
-Qed.
-
-Instance Obs_eqdec : stdpp.base.EqDecision ObsLabel.
-Proof.
-  intros x y.
-  unfold base.Decision.
-  destruct (stdpp.base.decide (to_sum x = to_sum y)).
-  - left; apply to_sum_injective; auto.
-  - right; intros xney.
-    subst x.
-    congruence.
-Defined.
-
-Definition to_nat (p : Party) :=
-  match p with
-  | PartyN n => n
-  end.
-
-Definition of_nat (n : nat) := PartyN n.
-
-Lemma of_to_nat p : of_nat (to_nat p) = p.
-Proof.
-  now destruct p.
-Qed.
-
-
-
-Lemma to_int_injective x y  : to_nat x = to_nat y ->
-                              x = y.
-Proof. intros.
-       assert (of_nat (to_nat x) = of_nat (to_nat y)) by congruence. now rewrite !of_to_nat in H0.
-Qed.
-
-Definition to_natA (a : Asset) :=
-  match a with
-  | DKK => 0%nat
-  | USD => 1%nat
-  end.
-
-Definition of_natA (n : nat) :=
-  match n with
-  | 0%nat => DKK
-  | _ => USD
-  end.
-
-Lemma of_to_natA a : of_natA (to_natA a) = a.
-Proof.
-  now destruct a.
-Qed.
-
-Lemma to_natA_injective x y  : to_natA x = to_natA y ->
-                               x = y.
-Proof. intros.
-       assert (of_natA (to_natA x) = of_natA (to_natA y)) by congruence. now rewrite !of_to_natA in H0.
-Qed.
-
-Instance Asset_eqdec : stdpp.base.EqDecision Asset.
-Proof.
-  intros x y.
-  unfold base.Decision.
-  destruct (stdpp.base.decide (to_natA x = to_natA y)).
-  - left; apply to_natA_injective; auto.
-  - right; intros xney.
-    subst x. congruence.
-Defined.
-Instance Party_eqdec : stdpp.base.EqDecision Party.
-Proof.
-  intros x y.
-  unfold base.Decision.
-  destruct (stdpp.base.decide (to_nat x = to_nat y)).
-  - left; apply to_int_injective; auto.
-  - right; intros xney.
-    subst x. congruence.
-Defined.
-
-Instance Obs_countable : countable.Countable ObsLabel.
-Proof.
-  refine {| countable.encode t := countable.encode (to_sum t);
-            countable.decode p := do zz <- countable.decode p;
-                                     Some (of_sum zz) |}.
-  intros x.
-  rewrite countable.decode_encode.
-  cbn.
-  now rewrite of_to_sum.
-Defined.
-
-Instance Party_countable : countable.Countable Party.
-Proof.
-  refine {| countable.encode t := countable.encode (to_nat t);
-            countable.decode p := do zz <- countable.decode p;
-                                     Some (of_nat zz) |}.
-  intros x. rewrite countable.decode_encode. cbn. now rewrite of_to_nat.
-Defined.
-
-
-Instance Asset_countable : countable.Countable Asset.
-Proof.
-  refine {| countable.encode t := countable.encode (to_natA t);
-            countable.decode p := do zz <- countable.decode p;
-                                     Some (of_natA zz) |}.
-  intros x. rewrite countable.decode_encode. cbn. now rewrite of_to_natA.
-Defined.
-
-
-Definition OLEq (l1: ObsLabel) (l2 : ObsLabel) :=
-  match l1, l2 with
-  | (LabZ z1) , (LabZ z2) => z1 =? z2
-  | (LabB z1) , (LabB z2) => z1 =? z2
-  | _ , _ => false 
-  end.
 
 Inductive Var : Set := V1 | VS (v:Var).
 
@@ -379,16 +220,6 @@ Fixpoint scale_aux1 (s: Z) (l : list (Party * (FMap Party (FMap Asset Z)))) : Tr
 
 Fixpoint scale_transM (s : Z) (t : TransM) :=
   scale_aux1 s (FMap.elements t).
-(** Test Code 
-Definition p1 := PartyN 1.
-Definition p2 := PartyN 2.
-Definition p3 := PartyN 3.
-
-Definition t1 := singleton_transM p1 p2 DKK 1.
-Definition t2 := singleton_transM p2 p3 DKK 2.
-Definition u12 := add_transM t1 t2.
-Compute lookup_transM p1 p2 DKK (scale_transM 3 u12).
- *)
 
 Definition scale_trans : Z -> Trans -> Trans := fun s t p1 p2 c => (t p1 p2 c * s).
 
@@ -396,7 +227,7 @@ Definition Trace := nat -> Trans.
 
 Definition TraceM := FMap nat TransM.
 
-(* The following are combinators to contruct traces. *)
+(* Combinators to contruct traces. *)
 
 Definition const_trace (t : Trans) : Trace := fun x => t.
 Definition empty_trace : Trace := const_trace empty_trans.
