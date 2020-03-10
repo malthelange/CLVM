@@ -32,8 +32,6 @@ Definition eqbA (a1 : Asset) (a2 : Asset)  : bool :=
   | USD, USD => true
   | _,_ => false
   end.
- 
-
 
 Inductive Party :=
 | PartyN : nat -> Party.
@@ -672,22 +670,7 @@ Fixpoint Csem (c : Contr) (env : Env) (ext : ExtEnv) : option Trace :=
   Definition CompileRunE (e : Exp) : option Val :=
     do ce <- CompileE e; vmE ce [] def_extM.
 
-  Definition lit10 := OpE (ZLit 10) [].
-  Definition lit3 := OpE (ZLit 3) [].
-  Definition lit4 := OpE (ZLit 4) [].
-  Definition obs1 := Obs (LabZ 1) 0.
-  Definition obs2 := Obs (LabZ 2) 0.
-  Definition obs_bool := Obs (LabB 0) 4.
-  Definition p1 := PartyN 1.
-  Definition p2 := PartyN 2.
-
-  Definition exmp1 := (OpE Sub [lit10; (OpE Add [lit4; lit3])]).
-  Definition exmp2 := OpE Leq [lit4; exmp1].
-  Definition exmp3 := OpE Cond [exmp2; lit4; exmp1].
-
-  Compute CompileRunE exmp3.
-  Compute Esem exmp3 [] def_ext.
-
+ 
   
   Definition update_ext (l1 : ObsLabel) (i1 : Z) (vn : Val)  (e : ExtEnv) := (fun l i => if ((OLEq l l1) && (i =? i1))%bool then vn else e l i).
  
@@ -703,14 +686,6 @@ Fixpoint Csem (c : Contr) (env : Env) (ext : ExtEnv) : option Trace :=
  Definition extm_exmp1 : FMap (ObsLabel * Z) Val := FMap.add ((LabZ 1),4) (ZVal 20) (FMap.add ((LabB 0),4) (BVal true) (FMap.add ((LabZ 2),1) (ZVal (-4)) (FMap.add ((LabZ 1),0) (ZVal 1) (FMap.add ((LabZ 1),1) (ZVal 2) def_extM)))).
 
   Compute ext_exmp1 (LabB 0) 4.
-Definition c_exmp1 := (Scale obs1 (Transfer (PartyN 1) (PartyN 2) DKK)).
-Definition c_exmp2 := (Translate 1 (Scale obs2 (Transfer (PartyN 1) (PartyN 2) DKK))).
-Definition c_exmp3 := (Both c_exmp1 c_exmp2).
-Definition c_exmp4 := Translate 1 (Both ((Scale obs1 (Transfer (PartyN 1) (PartyN 2) DKK))) (Scale obs2 (Transfer (PartyN 1) (PartyN 2) DKK))).
-
-Definition std_option := ifc obs_bool within 30 then c_exmp1 else Ø.
-Definition over_price := OpE Leq [obs1 ; OpE Mult [VarE V1; (OpE (ZLit 2) [])]].
-Definition let_option := Let obs1 (ifc over_price within 30 then Ø else c_exmp1).
 
 
 Definition lookupTrace (t : option Trace) (n : nat) (p1 p2 : Party) (a: Asset) : option Z :=
@@ -724,8 +699,6 @@ match t with
 | None => None end
 .
 
-Compute lookupTrace (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) 0 p1 p2 DKK.
-Compute lookupTraceM (CompileRunC c_exmp1 [] extm_exmp1) 0 p1 p2 DKK.
 
 Definition traceMtoTrace (t : TraceM) (default: Z) : Trace :=
   fun n p1 p2 a => match lookupTraceM (Some t) n p1 p2 a with
@@ -748,21 +721,7 @@ Lemma c4 : (Csem c_exmp4 [] ext_exmp1) = (CompileRunC c_exmp4 [] extm_exmp1) .
 Proof. reflexivity. Qed.
 Lemma c5 : (Csem std_option [] ext_exmp1) = (CompileRunC std_option [] extm_exmp1).
 Proof. reflexivity. Qed. *)
-
-Compute lookupTrace (Csem std_option [] ext_exmp1) 1 p1 p2 DKK.
-Compute lookupTrace (Csem let_option [] ext_exmp1) .
-
-  Lemma test1 : (CompileRunE exmp1) = Esem exmp1 [] def_ext.
-  Proof. reflexivity. Qed.
-
-  Lemma test2 : (CompileRunE exmp2) = Esem exmp2 [] def_ext.
-  Proof. reflexivity. Qed.
-
-  Lemma test3 : (CompileRunE exmp3) = Esem exmp3 [] def_ext.
-  Proof. reflexivity. Qed.
-
   
-
   Section Interp.
     Context `{Base : ChainBase}.
 
@@ -819,3 +778,4 @@ Compute lookupTrace (Csem let_option [] ext_exmp1) .
       | Some (update ext) => Some (state<|result := (vmC (contract state) [] ext)|>, [])
       | None => Some (state,[])
       end.
+    End Interp.
