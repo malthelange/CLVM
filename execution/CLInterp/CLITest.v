@@ -14,6 +14,8 @@ Require Import Serializable.
 From RecordUpdate Require Import RecordUpdate.
 Import RecordSetNotations.
 
+Require Import CLIPrelude.
+Require Import CLITranslate.
 Require Import CLInterp.
 
   Notation "'ifc' e 'within' n 'then' c1 'else' c2" := (If e n c1 c2) (at level 100, e at next level, right associativity).

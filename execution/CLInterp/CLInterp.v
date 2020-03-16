@@ -31,11 +31,12 @@ Section Interp.
   Record State :=
     build_state {
         contract : list CInstruction;
+        currentTime : nat;
         result : option TraceM;
       }.
 
   Inductive Msg :=
-  | update : ExtMap -> Msg.                          
+  | update : ExtMap -> nat -> Msg.                          
 
 
   Instance party_serializable : Serializable Party :=
@@ -63,18 +64,18 @@ Section Interp.
   Instance MsgSerial : Serializable Msg :=
     Derive Serializable Msg_rect<update>.
   Global Instance State_settable : Settable _ :=
-    settable! build_state <contract; result>.
+    settable! build_state <contract; currentTime; result>.
   
   Definition init (chain : Chain) (ctx: ContractCallContext) (setup: Setup) : option State :=
     let contract := setup_contract setup in
-    Some (build_state contract None).
+    Some (build_state contract 0 None).
 
   Definition receive
              (chain : Chain) (ctx : ContractCallContext)
              (state : State) (msg : option Msg)
     : option (State * list ActionBody) :=
     match msg with
-    | Some (update ext) => Some (state<|result := (vmC (contract state) [] ext)|>, [])
+    | Some (update ext t) => Some (state<|result := (vmC (contract state) [] ext)|>, [])
     | None => Some (state,[])
     end.
 End Interp.
