@@ -276,7 +276,6 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (Env -> ExtMap 
   end.
 
 
-
 Definition vmE (instrs : list instruction) (env : Env) (ext : ExtMap) : option Val :=
   StackEInterp instrs [] env  ext.
 
