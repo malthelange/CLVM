@@ -15,7 +15,7 @@ From RecordUpdate Require Import RecordUpdate.
 Import RecordSetNotations.
 
 Open Scope Z.
-
+(** Basic datatypes needed for CL and CLVM *)
 Inductive Val : Set := BVal : bool -> Val | ZVal : Z -> Val.
 Parameter BoolObs : Z.
 Parameter ZObs : Z.
@@ -49,7 +49,9 @@ Definition of_sum (zz : Z + Z) : ObsLabel :=
   | inr r => LabB r
   end.
 
-(** TODO: REFACTOR Proof of countable and decideable equality from serialization to nat *)
+(** TODO: 
+Proof of decideable equality and countability datatypes, needed for serialization
+REFACTOR Proof of countable and decideable equality from serialization to nat *)
 
 Lemma of_to_sum t : of_sum (to_sum t) = t.
 Proof.
@@ -173,8 +175,9 @@ Definition OLEq (l1: ObsLabel) (l2 : ObsLabel) :=
   | _ , _ => false 
   end.
 
-Inductive Var : Set := V1 | VS (v:Var).
 
+(** Definition of environments for CL and CLVM *)
+Inductive Var : Set := V1 | VS (v:Var).
 
 Definition Env' A := list A.
 
@@ -214,10 +217,11 @@ Definition ExtMap := FMap (ObsLabel * Z) Val.
 Definition ExtMap_to_ExtEnv (extM : ExtMap) : ExtEnv := fun l i => match FMap.find (l,i) extM with
                                                                    | None => ZVal 0
                                                                    | Some v => v
-                                                                   end.
+                                                                end.
+
+(** Interfaces for advancing environments *)
 
 Definition empt : FMap (ObsLabel * Z) Val := FMap.empty.
-Definition updated : ExtMap := FMap.add ((LabZ 1), 1) (ZVal 20) empt.
 
 Fixpoint adv_map_aux (l : list (ObsLabel * Z * Val)) (d : Z) :=
   match l with
@@ -229,6 +233,7 @@ Fixpoint adv_map_aux (l : list (ObsLabel * Z * Val)) (d : Z) :=
 Definition adv_map (d : Z) (e : ExtMap) : ExtMap
   := FMap.of_list (adv_map_aux (FMap.elements e) d).
 
+(** Definition of transactions and traces for CL and CLVM along with combinators *)
 
 Definition Trans := Party -> Party -> Asset -> Z.
 Definition TransM := FMap Party (FMap Party (FMap Asset Z)).
@@ -301,8 +306,6 @@ Definition scale_trans : Z -> Trans -> Trans := fun s t p1 p2 c => (t p1 p2 c * 
 Definition Trace := nat -> Trans.
 
 Definition TraceM := FMap nat TransM.
-
-(* Combinators to contruct traces. *)
 
 Definition const_trace (t : Trans) : Trace := fun x => t.
 Definition empty_trace : Trace := const_trace empty_trans.
