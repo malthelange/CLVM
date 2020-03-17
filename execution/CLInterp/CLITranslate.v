@@ -14,6 +14,8 @@ From RecordUpdate Require Import RecordUpdate.
 Import RecordSetNotations.
 Require Import CLIPrelude.
 
+(** Definition of operations in CL and CLVM and expressions in CL *)
+
 Inductive Op : Set := Add | Sub | Mult | Div | And | Or | Less | Leq | Equal |
                       Not | Neg |
                       BLit (b : bool) | ZLit (r : Z) |
@@ -37,6 +39,8 @@ Inductive Contr : Type :=
 
 
 Reserved Notation "'E[|' e '|]'" (at level 9).
+
+(** Semantics of operations in CL *)
 
 Definition OpSem (op : Op) (vs : list Val) : option Val :=
   match op with
@@ -69,7 +73,7 @@ Fixpoint Acc_sem {A} (f : nat -> A -> A) (n : nat) (z : A) : A :=
 Definition Fsem {A} (f : Env -> ExtEnv -> option A) (env : Env) (ext : ExtEnv) 
   := (fun m x => x >>= fun x' =>  f (x' :: env) (adv_ext (Z.of_nat m) ext)).
 
-
+(** Semantics of expressions in CL *)
 Fixpoint Esem (e : Exp) (env : Env) (ext : ExtEnv) : option Val :=
   match e with
   | OpE op args => sequence (map (fun e => E[|e|] env ext) args) >>= OpSem op
@@ -98,6 +102,8 @@ Fixpoint within_sem (c1 c2 : Env -> ExtEnv  -> option Trace)
      | _ => None
      end.
 
+
+(** Denotational semantics of CL contracts *)
 Reserved Notation "'C[|' e '|]'" (at level 9).
 Fixpoint Csem (c : Contr) (env : Env) (ext : ExtEnv) : option Trace :=
   match c with
@@ -111,7 +117,9 @@ Fixpoint Csem (c : Contr) (env : Env) (ext : ExtEnv) : option Trace :=
   end
 where "'C[|' e '|]'" := (Csem e).
 
-(** TODO Literals should be refactored into OpE to comply with original semantics *)
+(** TODO 
+Definition of instruction for CLVM expressions
+Literals should be refactored into OpE to comply with original semantics *)
 Inductive instruction :=
 | IPushZ : Z -> instruction
 | IPushB : bool -> instruction
@@ -123,6 +131,7 @@ Inductive instruction :=
 Definition app3 {A} (a b c : list A) := a ++ b ++ c.
 Definition LApp3 {A} := liftM3 (@app3 A).
 
+(** Compilation of CL expressions to CLVM expressions *)
 Fixpoint CompileE (e : Exp) : option (list instruction) :=
   match e with
   | OpE op args => match op with
@@ -138,7 +147,7 @@ Fixpoint CompileE (e : Exp) : option (list instruction) :=
   | Acc e1 d e2 => LApp3 (CompileE e2) (CompileE e1) (Some [IAcc d])
   end.
 
-
+(** Definition of contract instructions in CLVM *)
 Inductive CInstruction :=
 | CIZero : CInstruction
 | CITransfer : Party -> Party -> Asset -> CInstruction
@@ -148,6 +157,7 @@ Inductive CInstruction :=
 | CILet : list instruction -> CInstruction
 | CIIf : list instruction -> nat -> CInstruction.
 
+(** Compilation of CL contracts to CLVM contracts *)
 Fixpoint CompileC (c : Contr) : option (list CInstruction) :=
   match c with
   | Zero => Some [CIZero]
@@ -194,6 +204,7 @@ Definition find_default (k : (ObsLabel * Z)) (ext : ExtMap) (default : Val) : Va
                                                                                      | Some v => v
                                                                                      end.
 
+(** Definition of expression semantics in CLVM, parameters are in reverse polish notation *)
 Fixpoint StackEInterp (instrs : list instruction) (stack : list (Env -> ExtMap -> option Val)) (env: Env) (ext: ExtMap) : option Val :=
   match instrs with
   | [] => match stack with
@@ -254,6 +265,7 @@ Fixpoint stack_within_sem (c1 c2 : Env -> ExtMap  -> option TraceM)
      | _ => None
      end.
 
+(** Definition of semantics for CLVM, parameters are in reverse polish notation *)
 Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (Env -> ExtMap -> option TraceM)) (env : Env) (ext: ExtMap) : option TraceM :=
   match instrs with
   | [] => match stack with [res] => res env ext | _ => None end
@@ -276,6 +288,7 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (Env -> ExtMap 
   end.
 
 
+(** Interfaces for translating CL to CLVM and running CLVM *)
 Definition vmE (instrs : list instruction) (env : Env) (ext : ExtMap) : option Val :=
   StackEInterp instrs [] env  ext.
 

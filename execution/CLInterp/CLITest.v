@@ -18,18 +18,19 @@ Require Import CLIPrelude.
 Require Import CLITranslate.
 Require Import CLInterp.
 
-  Notation "'ifc' e 'within' n 'then' c1 'else' c2" := (If e n c1 c2) (at level 100, e at next level, right associativity).
-  Notation "'obsB' '(' z1 ';' z2 ')'" := (Obs (LabB z1) z2) (at level 100, right associativity).
-  Notation "'lbB' '(' z1 ')'" := (LabB z1) .
-  Notation "'Ø'" := Zero.
-  Notation "e 'X' c" := (Scale e c) (at level 100, right associativity).
-  Notation "c '(' p1 '--->' p2 ')'" := (Transfer p1 p2 c)(at level 100, right associativity).
-  Notation "d '^|' c" := (Translate d c)(at level 100, right associativity).
-  Definition ext_exmp1 := update_ext (LabZ 1) 4 (ZVal 20) (update_ext (LabB 0) 4 (BVal true) (update_ext (LabZ 2) 1 (ZVal (-4)) (update_ext (LabZ 1) 0 (ZVal 1) (update_ext  (LabZ 1) 1 (ZVal 2) def_ext )))).
+(** TODO: Not really working, i need a crash course in notation *)
+Notation "'ifc' e 'within' n 'then' c1 'else' c2" := (If e n c1 c2) (at level 100, e at next level, right associativity).
+Notation "'obsB' '(' z1 ';' z2 ')'" := (Obs (LabB z1) z2) (at level 100, right associativity).
+Notation "'lbB' '(' z1 ')'" := (LabB z1) .
+Notation "'Ø'" := Zero.
+Notation "e 'X' c" := (Scale e c) (at level 100, right associativity).
+Notation "c '(' p1 '--->' p2 ')'" := (Transfer p1 p2 c)(at level 100, right associativity).
+Notation "d '^|' c" := (Translate d c)(at level 100, right associativity).
+(** Equivalent example environments for CL and CLVM *)
+Definition ext_exmp1 := update_ext (LabZ 1) 4 (ZVal 20) (update_ext (LabB 0) 4 (BVal true) (update_ext (LabZ 2) 1 (ZVal (-4)) (update_ext (LabZ 1) 0 (ZVal 1) (update_ext  (LabZ 1) 1 (ZVal 2) def_ext )))).
+Definition extm_exmp1 : FMap (ObsLabel * Z) Val := FMap.add ((LabZ 1),4) (ZVal 20) (FMap.add ((LabB 0),4) (BVal true) (FMap.add ((LabZ 2),1) (ZVal (-4)) (FMap.add ((LabZ 1),0) (ZVal 1) (FMap.add ((LabZ 1),1) (ZVal 2) def_extM)))).
 
- Definition extm_exmp1 : FMap (ObsLabel * Z) Val := FMap.add ((LabZ 1),4) (ZVal 20) (FMap.add ((LabB 0),4) (BVal true) (FMap.add ((LabZ 2),1) (ZVal (-4)) (FMap.add ((LabZ 1),0) (ZVal 1) (FMap.add ((LabZ 1),1) (ZVal 2) def_extM)))).
-
-  Compute ext_exmp1 (LabB 0) 4.
+Compute ext_exmp1 (LabB 0) 4.
 
 Definition lit10 := OpE (ZLit 10) [].
 Definition lit3 := OpE (ZLit 3) [].
@@ -62,7 +63,7 @@ Compute lookupTraceM (CompileRunC c_exmp1 [] extm_exmp1) 0 p1 p2 DKK.
 Compute lookupTrace (Csem std_option [] ext_exmp1) 1 p1 p2 DKK.
 Compute lookupTrace (Csem let_option [] ext_exmp1) .
 
-
+(** Since CL and CLVM expressions output the same type, we can write unit tests *)
 Lemma test1 : (CompileRunE exmp1) = Esem exmp1 [] def_ext.
 Proof. reflexivity. Qed.
 
@@ -73,7 +74,7 @@ Lemma test3 : (CompileRunE exmp3) = Esem exmp3 [] def_ext.
 Proof. reflexivity. Qed.
 
 
-(** TODO: How do we prove these?
+(** TODO: How do we prove these? CL outputs functions and CLVM outputs finite maps
 
 Lemma c1 : (Csem c_exmp1 [] (ExtMap_to_ExtEnv extm_exmp1)) =
            liftM2 traceMtoTrace (CompileRunC c_exmp1 [] extm_exmp1) (Some 0) .
@@ -89,7 +90,7 @@ Proof. reflexivity. Qed.
 Lemma c5 : (Csem std_option [] ext_exmp1) = (CompileRunC std_option [] extm_exmp1).
 Proof. reflexivity. Qed. *)
 
-(** Test Code 
+(** Test Code for scale transM
 Definition p1 := PartyN 1.
 Definition p2 := PartyN 2.
 Definition p3 := PartyN 3.
@@ -99,4 +100,5 @@ Definition t2 := singleton_transM p2 p3 DKK 2.
 Definition u12 := add_transM t1 t2.
 Compute lookup_transM p1 p2 DKK (scale_transM 3 u12).
  *)
+
 

@@ -22,7 +22,7 @@ Set Nonrecursive Elimination Schemes.
 Section Interp.
   Context `{Base : ChainBase}.
 
-
+  (** Defines setup, state and message records for the contract *)
   Record Setup :=
     build_setup {
         setup_contract : list CInstruction;
@@ -39,6 +39,7 @@ Section Interp.
   | update : ExtMap -> nat -> Msg.                          
 
 
+  (** Automatically prove that our required datatypes and records are serializable, needs to be in this file for some reason *)
   Instance party_serializable : Serializable Party :=
     Derive Serializable Party_rect<PartyN>.
   Instance Obs_serializable : Serializable ObsLabel :=
@@ -65,11 +66,15 @@ Section Interp.
     Derive Serializable Msg_rect<update>.
   Global Instance State_settable : Settable _ :=
     settable! build_state <contract; currentTime; result>.
-  
+
+  (** init funtion for the contract, sets the current time to zero, and the currently computed transactions to None
+   note that we meassure time realitvely, so 0 means 0 time units since initialization *)
   Definition init (chain : Chain) (ctx: ContractCallContext) (setup: Setup) : option State :=
     let contract := setup_contract setup in
     Some (build_state contract 0 None).
 
+  (** The receive method of the contract. If an environment is received the contract is evaluated according to this enviroment
+      The result is saved in the state. This is not the behaviour we want, but is a simple proof that we can run CLVM in the ConCert framework*)
   Definition receive
              (chain : Chain) (ctx : ContractCallContext)
              (state : State) (msg : option Msg)
