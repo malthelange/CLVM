@@ -287,6 +287,31 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (Env -> ExtMap 
     end
   end.
 
+Fixpoint StackCStep (instrs : list CInstruction)
+         (stack : list (Env -> ExtMap -> option TraceM))
+         (reduced: (list CInstruction))
+         (env : Env) (ext: ExtMap)
+  : option ((list CInstruction) * TraceM) :=
+  match instrs with
+  | [] => match stack with [res] => res env ext | _ => None end
+  | hd::tl =>
+    match hd with
+    | CIZero => StackCInterp tl ((fun e et => Some empty_traceM)::stack) env ext
+    | CITransfer p1 p2 c => StackCInterp tl ((fun e et => Some(singleton_traceM (singleton_transM p1 p2 c 1)))::stack) env ext
+    | CIScale expis => match stack with hd2::tl2 => StackCInterp tl ((fun e et => do z <- liftM toZ (StackEInterp expis [] e et); liftM2 scale_traceM z (hd2 e et))::tl2) env ext
+                                   | [] => None
+                       end
+    | CIBoth => match stack with t1::t2::tl2 => StackCInterp tl ((fun e et => liftM2 add_traceM (t1 e et) (t2 e et))::tl2) env ext | _ => None end 
+    | CITranslate n => match stack with t1::tl2 => StackCInterp tl ((fun e et => liftM (delay_traceM n) (t1 e (adv_map (Z.of_nat n) et)))::tl2) env ext | _ => None end
+    | CIIf expis n => match stack with t1::t2::tl2 => StackCInterp tl ((fun e et => stack_within_sem t1 t2 expis n e et)::tl2) env ext | _ => None end
+    | CILet expis => match stack with t1::tl2
+                                      => StackCInterp tl
+                                                      ((fun e et => do v <- (StackEInterp expis [] e et);(t1 (v::e) et))::tl2)
+                                                      env ext
+                                 | _ => None end
+    end
+  end.
+
 
 (** Interfaces for translating CL to CLVM and running CLVM *)
 Definition vmE (instrs : list instruction) (env : Env) (ext : ExtMap) : option Val :=
