@@ -23,7 +23,6 @@ Close Scope N_scope.
 Close Scope nat_scope.
 Close Scope positive.
 
-(** TODO: Not really working, i need a crash course in notation *)
 (** (Danil) Fixed the notation a bit *)
 Notation "a - b" := (OpE Sub [a;b]) : cl_scope.
 Notation "a < b" := (OpE Less [a;b]) : cl_scope.
