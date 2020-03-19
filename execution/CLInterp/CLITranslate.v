@@ -343,6 +343,9 @@ Proof.
 Definition vmC (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
   StackCInterp instrs [] env ext.
 
+Definition vmPartial (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
+  StackCPartial instrs [] env ext.
+
 Definition CompileRunC (c : Contr) (env : Env) (ext: ExtMap) : option TraceM :=
   do instrs <- (CompileC c) ; vmC instrs env ext.
 

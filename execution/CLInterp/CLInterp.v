@@ -73,14 +73,37 @@ Section Interp.
     let contract := setup_contract setup in
     Some (build_state contract 0 None).
 
-  (** The receive method of the contract. If an environment is received the contract is evaluated according to this enviroment
-      The result is saved in the state. This is not the behaviour we want, but is a simple proof that we can run CLVM in the ConCert framework*)
+  Definition extract_element (trace : TraceM) (index : nat) : TraceM :=
+    match FMap.find index trace with
+    | Some trans => FMap.add index trans empty_traceM
+    | None => empty_traceM
+    end.
+  
+  Fixpoint cutTrace (trace : TraceM) (startTime idx: nat) : TraceM :=
+    match idx with
+    | 0%nat => empty_traceM
+    | S n => add_traceM (extract_element trace (startTime + idx)%nat) (cutTrace trace startTime n)
+    end.
+  
+  (** 
+      The receive method of the contract.
+      When an environment and a time is received, if the new time is greater that what
+      has previously been evaluated, then the contract is evluated according to the 
+      environment. The section of the trace between the this evaluation and the last
+      is recorded for use by the ContractManager.
+   *)  
+
   Definition receive
              (chain : Chain) (ctx : ContractCallContext)
              (state : State) (msg : option Msg)
     : option (State * list ActionBody) :=
     match msg with
-    | Some (update ext t) => Some (state<|result := (vmC (contract state) [] ext)|>, [])
+    | Some (update ext t) => if (Nat.ltb (currentTime state) t) then 
+                              Some (state<|result := do trace <- (vmPartial (contract state) [] ext);
+                                                     Some (cutTrace trace (currentTime state) t)|>
+                                                     <|currentTime := t |>, [])
+                            else
+                              None
     | None => Some (state,[])
     end.
 End Interp.
