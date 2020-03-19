@@ -214,7 +214,7 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (Env -> ExtMap -
   | hd::tl => match hd with
               | IPushZ z => StackEInterp tl ((fun e et => Some (ZVal z))::stack) env ext
               | IPushB b => StackEInterp tl ((fun e et => Some (BVal b))::stack) env ext
-              | IObs l i => StackEInterp tl ((fun e et => (Some (find_default (l,i) et (ZVal 0))))::stack) env ext
+              | IObs l i => StackEInterp tl ((fun e et => FMap.find (l,i) et )::stack) env ext
               | IOp op => match op with
                           | Add => match (pop2 stack env ext) with Some ((ZVal z1),(ZVal z2), tl2)
                                                                    => StackEInterp tl ((fun e et => Some (ZVal (z1 + z2)))::tl2) env ext | _ => None end
