@@ -349,8 +349,11 @@ Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (exp
                                  (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap),
     expis = l0 ++ l1 -> CompileE e = Some l0 -> Esem e env (ExtMap_to_ExtEnv extM) = v ->
     StackEInterp (l0 ++ l1) stack env extM false = StackEInterp l1 ((fun env ext => v)::stack) env extM false.
- Proof. Admitted.
-
+Proof. intro. induction e; intros.
+       - admit.
+       - inversion H0. cbn. 
+         
+ 
 (* This proof needs refactoring, but it works for OP.
 destruct op eqn:EqOp; unfold vmE. 
 inversion H. destruct args. discriminate. destruct args. discriminate. destruct args.
