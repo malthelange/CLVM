@@ -50,7 +50,7 @@ Definition OpSem (op : Op) (vs : list Val) : option Val :=
   | Div => match vs with ([ZVal x; ZVal y ]) => Some (ZVal (x / y)) | _ => None end
   | And => match vs with ([BVal x; BVal y ]) => Some (BVal (x && y)) | _ => None end
   | Or => match vs with ([BVal x; BVal y ]) => Some (BVal (x || y)) | _ => None end
-  | Less => match vs with ([ZVal x; ZVal y ]) => Some (BVal (x <=?  y)) | _ => None end
+  | Less => match vs with ([ZVal x; ZVal y ]) => Some (BVal (x <?  y)) | _ => None end
   | Leq => match vs with ([ZVal x; ZVal y ]) => Some (BVal ( x <=?  y)) | _ => None end
   | Equal => match vs with ([ZVal x; ZVal y ]) => Some (BVal (x =? y)) | _ => None end
   | BLit b => match vs with ([]) => Some (BVal b) | _ => None end
@@ -351,12 +351,9 @@ Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (exp
     StackEInterp (l0 ++ l1) stack env extM false = StackEInterp l1 ((fun env ext => v)::stack) env extM false.
  Proof. Admitted.
 
-Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
-    CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = vmE expis env extM.
-Proof.
-  intro.  induction e; intros.
-  - destruct op eqn:EqOp; unfold vmE; try ()
-    + inversion H. destruct args. discriminate. destruct args. discriminate. destruct args.
+(* This proof needs refactoring, but it works for OP.
+destruct op eqn:EqOp; unfold vmE. 
+inversion H. destruct args. discriminate. destruct args. discriminate. destruct args.
       unfold LApp3 in H1. unfold liftM3 in H1. destruct (CompileE e0) eqn:Eq1. destruct (CompileE e) eqn:Eq2.
       cbn in H1. unfold app3 in H1. unfold pure in H1. inversion H1. cbn.
       rewrite TranlateExpressionStep with (expis := expis) (e:= e0) (v := (E[| e0|] env (ExtMap_to_ExtEnv extM))).
@@ -365,8 +362,13 @@ Proof.
       destruct (E[| e0|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4; reflexivity.
       apply env. apply extM. rewrite EqOp. reflexivity. apply Eq2. reflexivity. apply env. apply extM. symmetry. apply H2. apply Eq1.
       reflexivity. cbn in H1.  discriminate. cbn in H1.  discriminate. discriminate.
-    +
-                                                                                           
+*)
+ 
+Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
+    CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = vmE expis env extM.
+Proof.
+  intro.  induction e; intros.
+  - admit.  
   - unfold vmE. inversion H. cbn. unfold find_default. destruct (FMap.find (l,i)) eqn:Eq.
     + apply TranslateMapSound in Eq. rewrite Eq. reflexivity.
     + unfold ExtMap_to_ExtEnv.  rewrite Eq. reflexivity.
