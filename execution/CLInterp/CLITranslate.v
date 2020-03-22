@@ -36,8 +36,6 @@ Inductive Contr : Type :=
 | Translate : nat -> Contr -> Contr
 | If : Exp -> nat -> Contr -> Contr -> Contr.
 
-
-
 Reserved Notation "'E[|' e '|]'" (at level 9).
 
 (** Semantics of operations in CL *)
@@ -351,7 +349,8 @@ Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (exp
     StackEInterp (l0 ++ l1) stack env extM false = StackEInterp l1 ((fun env ext => v)::stack) env extM false.
 Proof. intro. induction e; intros.
        - admit.
-       - inversion H0. cbn. 
+       - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
+         unfold find_default. 
          
  
 (* This proof needs refactoring, but it works for OP.
