@@ -389,7 +389,6 @@ Proof. intro. induction e; intros.
         (Fsem E[| e1|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2)))
         d (E[| e2|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))))).
            apply functional_extensionality. intros. apply functional_extensionality. intros.
-           
          
  
 (* This proof needs refactoring, but it works for OP.
