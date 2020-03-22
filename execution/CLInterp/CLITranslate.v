@@ -357,7 +357,12 @@ Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (exp
     expis = l0 ++ l1 -> CompileE e = Some l0 -> (fun env1 ext2 => Esem e env1 (ExtMap_to_ExtEnv ext2)) = f -> 
     StackEInterp (l0 ++ l1) stack env extM false =  StackEInterp l1 (f::stack) env extM false.
 Proof. intro. induction e; intros.
-       - admit.
+       - admit. (* TODO: The problem here is that i don't get the induction hypothesis,
+                 i should probably make a sepperate instruction for each operand.*) (* destruct op.
+         + inversion H0. destruct args. discriminate. destruct args. discriminate. destruct args.
+           unfold LApp3 in H3. unfold liftM3 in H3. destruct (CompileE e0) eqn:Eq1. destruct (CompileE e) eqn:Eq2.
+           cbn in H3. unfold app3 in H3. unfold pure in H3. inversion H3.
+           * ad *)
        - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
          unfold find_default. rewrite H1. reflexivity.
        - inversion H0. cbn. cbn in H1. rewrite <- H1.
@@ -365,7 +370,26 @@ Proof. intro. induction e; intros.
                      (fun (env1 : Env) (_ : ExtMap) => lookupEnv v env1)).
          + apply functional_extensionality. intros. apply functional_extensionality. intros. rewrite lookupTranslateSound. reflexivity.
          + rewrite H4. reflexivity.
-       - 
+       - inversion H0. unfold LApp3 in H3. unfold liftM3 in H3.
+         destruct (CompileE e2)  eqn:Eqc2; destruct (CompileE e1) eqn:Eqc1; try (cbn in H1; discriminate).
+         cbn in H3. unfold pure in H3. unfold app3 in H3. inversion H3. cbn.
+         repeat rewrite <- app_assoc.
+         rewrite IHe1 with (expis := (l ++ l2 ++ [IAcc d] ++ l1)) (f :=  (fun (env1 : Env) (ext2 : ExtMap) =>
+                                                                       E[| e1 |] env1 (ExtMap_to_ExtEnv ext2))).
+         rewrite IHe2 with (expis := (l2 ++ [IAcc d] ++ l1)) (f :=  (fun (env1 : Env) (ext2 : ExtMap) =>
+                                                                       E[| e1 |] env1 (ExtMap_to_ExtEnv ext2))).
+         + rewrite <- H1. cbn. assert (H5: (fun (_ : Env) (et : ExtMap) =>
+      Acc_sem
+        (Fsem_stack
+           (fun (env1 : Env) (ext2 : ExtMap) =>
+            E[| e1|] env1 (ExtMap_to_ExtEnv ext2)) env0
+           (adv_map (- Z.of_nat d) et)) d
+        (E[| e1|] env0 (ExtMap_to_ExtEnv extM))) = (fun (env1 : Env) (ext2 : ExtMap) =>
+      Acc_sem
+        (Fsem E[| e1|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2)))
+        d (E[| e2|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))))).
+           apply functional_extensionality. intros. apply functional_extensionality. intros.
+           
          
  
 (* This proof needs refactoring, but it works for OP.
