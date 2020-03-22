@@ -249,7 +249,7 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (Env -> ExtMap -
                           | _ => None
                           end
               (** Might need to change this *)
-              | IVar n => do v <- (StackLookupEnv n env); StackEInterp tl ((fun e et => Some v)::stack) env ext partial
+              | IVar n => StackEInterp tl ((fun e et => (StackLookupEnv n e))::stack) env ext partial
               | IAcc n => match stack with
                           | s1::s2::tl2 => StackEInterp tl ((fun e et => let ext' := adv_map (- Z.of_nat n) et
                                                                          in Acc_sem (Fsem_stack s1 env ext') n (s1 env ext)) :: tl2) env ext partial
@@ -343,25 +343,41 @@ Lemma TranslateMapSound : forall (extM : ExtMap) (l : ObsLabel) (i : Z) (v: Val)
     FMap.find  (l, i) extM = Some v -> (ExtMap_to_ExtEnv extM) l i = v.
 Proof. intros. unfold ExtMap_to_ExtEnv. rewrite H. reflexivity. Qed.
 
-Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction) (v : option Val)
+(* Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction) (v : option Val)
                                  (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap),
-    expis = l0 ++ l1 -> CompileE e = Some l0 -> Esem e env (ExtMap_to_ExtEnv extM) = v ->
+    expis = l0 ++ l1 -> CompileE e = Some l0 -> Esem e env (ExtMap_to_ExtEnv extM) = v -> 
     StackEInterp (l0 ++ l1) stack env extM false = StackEInterp l1 ((fun env ext => v)::stack) env extM false.
 Proof. intro. induction e; intros.
        - admit.
        - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
-         unfold find_default. 
+         unfold find_default. *)
+
+Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction)
+                                 (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap) (f: Env -> ExtMap -> option Val),
+    expis = l0 ++ l1 -> CompileE e = Some l0 -> (fun env1 ext2 => Esem e env1 (ExtMap_to_ExtEnv ext2)) = f -> 
+    StackEInterp (l0 ++ l1) stack env extM false =  StackEInterp l1 (f::stack) env extM false.
+Proof. intro. induction e; intros.
+       - admit.
+       - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
+         unfold find_default. rewrite H1. reflexivity.
+       - inversion H0. cbn. cbn in H1. rewrite <- H1.
+         assert (H4: (fun (e : Env' Val) (_ : ExtMap) => StackLookupEnv (translateVarToNat v) e) =
+                     (fun (env1 : Env) (_ : ExtMap) => lookupEnv v env1)).
+         + apply functional_extensionality. intros. apply functional_extensionality. intros. rewrite lookupTranslateSound. reflexivity.
+         + rewrite H4. reflexivity.
+       - 
          
  
 (* This proof needs refactoring, but it works for OP.
 destruct op eqn:EqOp; unfold vmE. 
-inversion H. destruct args. discriminate. destruct args. discriminate. destruct args.
+    inversion H. destruct args. discriminate. destruct args. discriminate. destruct args.
       unfold LApp3 in H1. unfold liftM3 in H1. destruct (CompileE e0) eqn:Eq1. destruct (CompileE e) eqn:Eq2.
       cbn in H1. unfold app3 in H1. unfold pure in H1. inversion H1. cbn.
-      rewrite TranlateExpressionStep with (expis := expis) (e:= e0) (v := (E[| e0|] env (ExtMap_to_ExtEnv extM))).
-      rewrite TranlateExpressionStep with (expis := (l0 ++ [IOp op])) (e:= e) (v := E[| e|] env (ExtMap_to_ExtEnv extM)).
+      rewrite TranlateExpressionStep with (expis := expis) (e:= e0) (f := (fun env1 ext1 => (E[| e0|]) env1 (ExtMap_to_ExtEnv ext1))).
+      rewrite TranlateExpressionStep with (expis := (l0 ++ [IOp op])) (e:= e) (f := (fun env1 ext1 => (E[| e|]) env1 (ExtMap_to_ExtEnv ext1))).
+      cbn.
       destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3; try reflexivity.
-      destruct (E[| e0|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4; reflexivity.
+      destruct (E[| e0|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4; try reflexivity.
       apply env. apply extM. rewrite EqOp. reflexivity. apply Eq2. reflexivity. apply env. apply extM. symmetry. apply H2. apply Eq1.
       reflexivity. cbn in H1.  discriminate. cbn in H1.  discriminate. discriminate.
 *)
@@ -370,7 +386,7 @@ Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) 
     CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = vmE expis env extM.
 Proof.
   intro.  induction e; intros.
-  - admit.  
+  - admit.
   - unfold vmE. inversion H. cbn. unfold find_default. destruct (FMap.find (l,i)) eqn:Eq.
     + apply TranslateMapSound in Eq. rewrite Eq. reflexivity.
     + unfold ExtMap_to_ExtEnv.  rewrite Eq. reflexivity.
