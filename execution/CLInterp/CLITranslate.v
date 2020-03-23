@@ -8,11 +8,14 @@ Require Import Monads.
 Require Import Blockchain.
 Require Import Extras.
 Require Import Containers.
+Require Export Equalities.
+Require Export Utils. 
 
 Require Import Serializable.
 From RecordUpdate Require Import RecordUpdate.
 Import RecordSetNotations.
-Require Import CLIPrelude.
+Require Import CLIPrelude. 
+Require Export CLIUtils.
 
 (** Definition of operations in CL and CLVM and expressions in CL *)
 
@@ -35,6 +38,32 @@ Inductive Contr : Type :=
 | Both : Contr -> Contr -> Contr
 | Translate : nat -> Contr -> Contr
 | If : Exp -> nat -> Contr -> Contr -> Contr.
+
+Definition Exp_ind'   : forall P : Exp -> Prop,
+       (forall (op : Op) (args : list Exp), all P args -> P (OpE op args)) ->
+       (forall (l : ObsLabel) (i : Z), P (Obs l i)) ->
+       (forall v : Var, P (VarE v)) ->
+       (forall f2 : Exp,
+        P f2 -> forall (d : nat) (e : Exp), P e -> P (Acc f2 d e)) ->
+       forall e : Exp, P e := 
+fun (P : Exp -> Prop)
+  (f : forall (op : Op) (args : list Exp), all P args -> P (OpE op args))
+  (f0 : forall (l : ObsLabel) (i : Z), P (Obs l i))
+  (f1 : forall v : Var, P (VarE v))
+  (f2 : forall f2 : Exp,
+        P f2 -> forall (d : nat) (e : Exp), P e -> P (Acc f2 d e)) =>
+fix F (e : Exp) : P e :=
+  match e as e0 return (P e0) with
+  | OpE op args => let fix step es : all P es := 
+                       match es with
+                           | nil => forall_nil P
+                           | e' :: es' => forall_cons P (F e') (step es')
+                       end
+                   in  f op args (step args)
+  | Obs l i => f0 l i
+  | VarE v => f1 v
+  | Acc f3 d e0 => f2 f3 (F f3) d e0 (F e0)
+  end.
 
 Reserved Notation "'E[|' e '|]'" (at level 9).
 
@@ -352,17 +381,25 @@ Proof. intro. induction e; intros.
        - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
          unfold find_default. *)
 
-Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction)
-                                 (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap) (f: Env -> ExtMap -> option Val),
-    expis = l0 ++ l1 -> CompileE e = Some l0 -> (fun env1 ext2 => Esem e env1 (ExtMap_to_ExtEnv ext2)) = f -> 
-    StackEInterp (l0 ++ l1) stack env extM false =  StackEInterp l1 (f::stack) env extM false.
-Proof. intro. induction e; intros.
-       - admit. (* TODO: The problem here is that i don't get the induction hypothesis,
-                 i should probably make a sepperate instruction for each operand.*) (* destruct op.
+
+(* TODO: The problem here is that i don't get the induction hypothesis, i don't know how to fix this
+                 without chaning the CL implementation*) (* destruct op.
          + inversion H0. destruct args. discriminate. destruct args. discriminate. destruct args.
            unfold LApp3 in H3. unfold liftM3 in H3. destruct (CompileE e0) eqn:Eq1. destruct (CompileE e) eqn:Eq2.
            cbn in H3. unfold app3 in H3. unfold pure in H3. inversion H3.
            * ad *)
+
+Check Exp_ind'.
+
+Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction)
+                                 (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap) (f: Env -> ExtMap -> option Val),
+    expis = l0 ++ l1 -> CompileE e = Some l0 -> (fun env1 ext2 => Esem e env1 (ExtMap_to_ExtEnv ext2)) = f -> 
+    StackEInterp (l0 ++ l1) stack env extM false =  StackEInterp l1 (f::stack) env extM false.
+Proof. intros. induction e using Exp_ind'.
+       - destruct op.
+         + inversion H0. destruct args. discriminate. destruct args. discriminate. destruct args.
+           unfold LApp3 in H4. unfold liftM3 in H4. destruct (CompileE e0) eqn:Eq1. destruct (CompileE e) eqn:Eq2.
+           cbn in H4. unfold app3 in H4.  inversion H4. eapply all2_apply in H2.
        - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
          unfold find_default. rewrite H1. reflexivity.
        - inversion H0. cbn. cbn in H1. rewrite <- H1.
@@ -408,7 +445,7 @@ destruct op eqn:EqOp; unfold vmE.
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
     CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = vmE expis env extM.
 Proof.
-  intro.  induction e; intros.
+  intro.  induction e using Exp_ind'; intros.
   - admit.
   - unfold vmE. inversion H. cbn. unfold find_default. destruct (FMap.find (l,i)) eqn:Eq.
     + apply TranslateMapSound in Eq. rewrite Eq. reflexivity.
