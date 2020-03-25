@@ -199,7 +199,7 @@ Fixpoint CompileC (c : Contr) : option (list CInstruction) :=
 Definition pop (l : list (Env -> ExtMap -> option Val)) (env : Env) (ext : ExtMap) :=
   match l with
   | s1::tl => match (s1 env ext) with
-              | Some v1 => Some (v1 , tl)
+              | Some v1 => Some (v1)
               | _   => None
               end
   | _  => None
@@ -208,7 +208,7 @@ Definition pop (l : list (Env -> ExtMap -> option Val)) (env : Env) (ext : ExtMa
 Definition pop2 (l : list (Env -> ExtMap -> option Val)) (env : Env) (ext : ExtMap) :=
   match l with
   | s1::s2::tl => match (s1 env ext) , (s2 env ext) with
-                  | Some v1, Some v2 => Some (v1, v2, tl)
+                  | Some v1, Some v2 => Some (v1, v2)
                   | _ , _  => None
                   end
   | _  => None
@@ -217,7 +217,7 @@ Definition pop2 (l : list (Env -> ExtMap -> option Val)) (env : Env) (ext : ExtM
 Definition pop3 (l : list (Env -> ExtMap -> option Val)) (env : Env) (ext : ExtMap) :=
   match l with
   | s1::s2::s3::tl => match (s1 env ext) , (s2 env ext) , (s3 env ext) with
-                      | Some v1, Some v2, Some v3 => Some (v1, v2, v3, tl)
+                      | Some v1, Some v2, Some v3 => Some (v1, v2, v3)
                       | _ , _ , _  => None
                       end
   | _  => None
@@ -249,34 +249,55 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (Env -> ExtMap -
                            else
                              StackEInterp tl ((fun e et => Some (find_default (l,i) et (ZVal 0)))::stack) env ext partial
               | IOp op => match op with
-                          | Add => match stack with hd::hd2::tl3 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
-                                                            | Some ((ZVal z1),(ZVal z2), tl2) => Some (ZVal (z1 + z2))
-                                                            | _ => None end)::tl3) env ext partial
+                          | Add => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
+                                                            | Some ((ZVal z1),(ZVal z2)) => Some (ZVal (z1 + z2))
+                                                            | _ => None end)::tl2) env ext partial
                                                | _ => None end
-                          | Sub => match (pop2 stack env ext) with Some ((ZVal z1),(ZVal z2), tl2)
-                                                                   => StackEInterp tl ((fun e et => Some (ZVal (z1 - z2)))::tl2) env ext partial | _ => None end
-                          | Mult => match (pop2 stack env ext) with Some ((ZVal z1),(ZVal z2), tl2)
-                                                                    => StackEInterp tl ((fun e et => Some (ZVal (z1 * z2)))::tl2) env ext partial | _ => None end
-                          | Div => match (pop2 stack env ext) with Some ((ZVal z1),(ZVal z2), tl2)
-                                                                   => StackEInterp tl ((fun e et => Some (ZVal (z1 / z2)))::tl2) env ext partial | _ => None end
-                          | And => match (pop2 stack env ext) with Some ((BVal b1),(BVal b2), tl2)
-                                                                   => StackEInterp tl ((fun e et => Some (BVal (b1 && b2)))::tl2) env ext partial| _ => None end
-                          | Or => match (pop2 stack env ext) with Some ((BVal b1),(BVal b2), tl2)
-                                                                  => StackEInterp tl ((fun e et => Some (BVal (b1 || b2)))::tl2) env ext partial | _ => None end
-                          | Less => match (pop2 stack env ext) with Some ((ZVal z1),(ZVal z2), tl2)
-                                                                    => StackEInterp tl ((fun e et => Some (BVal (z1 <? z2)))::tl2) env ext partial | _ => None end
-                          | Leq => match (pop2 stack env ext) with Some ((ZVal z1),(ZVal z2), tl2)
-                                                                   => StackEInterp tl ((fun e et => Some (BVal (z1 <=? z2)))::tl2) env ext partial | _ => None end
-                          | Equal => match (pop2 stack env ext) with Some ((ZVal z1),(ZVal z2), tl2)
-                                                                     => StackEInterp tl ((fun e et => Some (BVal (z1 =? z2)))::tl2) env ext partial | _ => None end
-                          | Cond => match (pop3 stack env ext) with
-                                    | Some ((BVal b),(ZVal x),(ZVal y),tl2) => let v := if b then x else y in
-                                                                               StackEInterp tl ((fun e et => Some (ZVal v))::tl2) env ext partial
-                                    | Some ((BVal b),(BVal x),(BVal y),tl2) => let v := if b then x else y in
-                                                                               StackEInterp tl ((fun e et => Some (BVal b))::tl2) env ext partial
-                                    | _ => None end
-                          | Neg => match (pop stack env ext) with Some (ZVal x, tl2) => StackEInterp tl ((fun e et => Some (ZVal (0 - x) ))::tl2) env ext partial | _ => None end
-                          | Not => match (pop stack env ext) with Some (BVal b, tl2) => StackEInterp tl ((fun e et => Some (BVal (negb b)))::tl2) env ext partial| _ => None end
+                          | Sub => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
+                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (ZVal (z1 - z2))
+                                                                                           | _ => None end )::tl2) env ext partial
+                                              | _ => None end
+                          | Mult => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
+                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (ZVal (z1 * z2))
+                                                                                           | _ => None end )::tl2) env ext partial
+                                              | _ => None end
+                          | Div => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
+                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (ZVal (z1 / z2))
+                                                                                           | _ => None end )::tl2) env ext partial
+                                              | _ => None end
+                          | And => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
+                                                                                           | Some ((BVal b1),(BVal b2)) => Some (BVal (b1 && b2))
+                                                                                           | _ => None end)::tl2) env ext partial
+                                              | _ => None end
+                          | Or => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
+                                                                                           | Some ((BVal b1),(BVal b2)) => Some (BVal (b1 || b2))
+                                                                                           | _ => None end)::tl2) env ext partial
+                                              | _ => None end
+                          | Less => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
+                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (BVal (z1 <? z2))
+                                                                                           | _ => None end )::tl2) env ext partial
+                                              | _ => None end
+                          | Leq => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
+                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (BVal (z1 <=? z2))
+                                                                                           | _ => None end )::tl2) env ext partial
+                                              | _ => None end
+                          | Equal => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
+                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (BVal (z1 =? z2))
+                                                                                           | _ => None end )::tl2) env ext partial
+                                              | _ => None end
+                          | Cond => match stack with hd::hd2::hd3::tl2 => StackEInterp tl ((fun e et => match (pop3 stack e et) with
+                                                                                               | Some ((BVal b),(ZVal x),(ZVal y)) => Some (ZVal (if b then x else y))
+                                                                                               | Some ((BVal b),(BVal x),(BVal y)) => Some (BVal (if b then x else y))
+                                                                                               | _ => None end )::tl2) env ext partial
+                                               | _ => None end
+                          | Neg => match stack with hd::tl2 => StackEInterp tl ((fun e et => match (pop stack e et) with
+                                                                                      | Some (ZVal x) => Some (ZVal (0 - x))
+                                                                                      | _ => None end)::tl2) env ext partial
+                                              | _ => None end
+                          | Not => match stack with hd::tl2 => StackEInterp tl ((fun e et => match (pop stack e et) with
+                                                                                      | Some (BVal b) => Some (BVal (negb b))
+                                                                                      | _ => None end)::tl2) env ext partial
+                                              | _ => None end
                           | _ => None
                           end
               (** Might need to change this *)
@@ -447,8 +468,7 @@ Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (exp
     expis = l0 ++ l1 -> CompileE e = Some l0 -> (fun env1 ext2 => Esem e env1 (ExtMap_to_ExtEnv ext2)) = f -> 
     StackEInterp (l0 ++ l1) stack env extM false =  StackEInterp l1 (f::stack) env extM false.
 Proof. intro. induction e using Exp_ind'; intros.
-       -
-         +
+       - admit.
        - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
          unfold find_default. rewrite H1. reflexivity.
        - inversion H0. cbn. cbn in H1. rewrite <- H1.
@@ -474,7 +494,7 @@ Proof. intro. induction e using Exp_ind'; intros.
       Acc_sem
         (Fsem E[| e1|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2)))
         d (E[| e2|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))))).
-           apply functional_extensionality. intros. apply functional_extensionality. intros.
+           apply functional_extensionality. intros. apply functional_extensionality. intros. Admitted.
          
  
 (* This proof needs refactoring, but it works for OP.
