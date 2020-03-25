@@ -489,7 +489,8 @@ Proof. intro. induction e using Exp_ind'; intros.
         (Fsem_stack
            (fun (env1 : Env) (ext2 : ExtMap) =>
             E[| e1|] env1 (ExtMap_to_ExtEnv ext2)) e
-           (adv_map (- Z.of_nat d) et)) d (E[| e1|] e (ExtMap_to_ExtEnv et))) = (fun (env1 : Env) (ext2 : ExtMap) =>
+           (adv_map (- Z.of_nat d) et)) d
+        (E[| e2|] e (ExtMap_to_ExtEnv et))) = (fun (env1 : Env) (ext2 : ExtMap) =>
       Acc_sem
         (Fsem E[| e1|] env1
            (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))) d
