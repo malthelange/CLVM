@@ -249,8 +249,10 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (Env -> ExtMap -
                            else
                              StackEInterp tl ((fun e et => Some (find_default (l,i) et (ZVal 0)))::stack) env ext partial
               | IOp op => match op with
-                          | Add => match (pop2 stack env ext) with Some ((ZVal z1),(ZVal z2), tl2)
-                                                                   => StackEInterp tl ((fun e et => Some (ZVal (z1 + z2)))::tl2) env ext partial | _ => None end
+                          | Add => match stack with hd::hd2::tl3 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
+                                                            | Some ((ZVal z1),(ZVal z2), tl2) => Some (ZVal (z1 + z2))
+                                                            | _ => None end)::tl3) env ext partial
+                                               | _ => None end
                           | Sub => match (pop2 stack env ext) with Some ((ZVal z1),(ZVal z2), tl2)
                                                                    => StackEInterp tl ((fun e et => Some (ZVal (z1 - z2)))::tl2) env ext partial | _ => None end
                           | Mult => match (pop2 stack env ext) with Some ((ZVal z1),(ZVal z2), tl2)
@@ -389,17 +391,64 @@ Proof. intro. induction e; intros.
            cbn in H3. unfold app3 in H3. unfold pure in H3. inversion H3.
            * ad *)
 
-Check Exp_ind'.
+Lemma all_apply'' {A} (P: A -> Prop) (x: A) (xs: list A) :
+  all P (x::xs) -> P x /\ (all P xs).
+Proof. intros. inversion H. split.
+       - apply H2.
+       - apply H3.
+Qed.
+
+
+(** This is a proof for one case of Op-expressions. In principle i could just copy this 16 times, with a small correction to the asssertion,
+    and a the number of destructs for args. But that is way way too messy. So i need some way to refactor this into cleaner steps.
+    It might be worth it to look into the CL repository for already existing tactics.
+ destruct op.
+         + inversion H1. destruct args. discriminate. destruct args. discriminate. destruct args.
+           unfold LApp3 in H4. unfold liftM3 in H4. destruct (CompileE e0) eqn:Eq1. destruct (CompileE e) eqn:Eq2.
+           cbn in H4. unfold app3 in H4.  inversion H4. apply all_apply'' in H. destruct H.
+           apply all_apply'' in H3. destruct H3. repeat rewrite <-  app_assoc.
+           rewrite H3 with (extM := extM) (expis := (l ++ l2 ++ [IOp Add] ++ l1)) (l0 := l)
+                           (l1 := l2 ++ [IOp Add] ++ l1) (stack := stack) (env0 := env0)
+                           (f := (fun (env1 : Env) (ext2: ExtMap) => E[| e0|] env1 (ExtMap_to_ExtEnv ext2))).
+           rewrite H with (extM := extM) (expis := (l2 ++ [IOp Add] ++ l1)) (l0 := l2)
+                           (l1 := [IOp Add] ++ l1) (stack := ((fun (env1 : Env) (ext2 : ExtMap) => E[| e0|] env1 (ExtMap_to_ExtEnv ext2)) :: stack)) (env0 := env0)
+                           (f := (fun (env1 : Env) (ext2: ExtMap) => E[| e|] env1 (ExtMap_to_ExtEnv ext2))). rewrite <- H2. cbn. assert (H7: (fun (e1 : Env) (et : ExtMap) =>
+      match
+        match E[| e|] e1 (ExtMap_to_ExtEnv et) with
+        | Some v1 =>
+            match E[| e0|] e1 (ExtMap_to_ExtEnv et) with
+            | Some v2 => Some (v1, v2, stack)
+            | None => None
+            end
+        | None => None
+        end
+      with
+      | Some (ZVal z1, BVal _, _) => None
+      | Some (ZVal z1, ZVal z2, _) => Some (ZVal (z1 + z2))
+      | _ => None
+      end) = (fun (env1 : Env) (ext2 : ExtMap) =>
+      do x <-
+      liftM2 (fun (x' : Val) (xs' : list Val) => x' :: xs')
+        (E[| e|] env1 (ExtMap_to_ExtEnv ext2))
+        (liftM2 (fun (x' : Val) (xs' : list Val) => x' :: xs')
+           (E[| e0|] env1 (ExtMap_to_ExtEnv ext2)) 
+           (Some [])); OpSem Add x)).
+            apply functional_extensionality. intro. apply functional_extensionality. intro.
+             destruct (E[| e|] x (ExtMap_to_ExtEnv x0)) eqn:Eq5.
+             destruct (E[| e0|] x (ExtMap_to_ExtEnv x0)) eqn:Eq6; reflexivity.
+             reflexivity.
+             rewrite H7.  reflexivity.
+                            apply env. apply extM. reflexivity. apply Eq2. reflexivity. apply env. apply extM. reflexivity.
+                            apply Eq1. reflexivity. discriminate. discriminate. discriminate.
+*)
 
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction)
                                  (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap) (f: Env -> ExtMap -> option Val),
     expis = l0 ++ l1 -> CompileE e = Some l0 -> (fun env1 ext2 => Esem e env1 (ExtMap_to_ExtEnv ext2)) = f -> 
     StackEInterp (l0 ++ l1) stack env extM false =  StackEInterp l1 (f::stack) env extM false.
-Proof. intros. induction e using Exp_ind'.
-       - destruct op.
-         + inversion H0. destruct args. discriminate. destruct args. discriminate. destruct args.
-           unfold LApp3 in H4. unfold liftM3 in H4. destruct (CompileE e0) eqn:Eq1. destruct (CompileE e) eqn:Eq2.
-           cbn in H4. unfold app3 in H4.  inversion H4. eapply all2_apply in H2.
+Proof. intro. induction e using Exp_ind'; intros.
+       -
+         +
        - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
          unfold find_default. rewrite H1. reflexivity.
        - inversion H0. cbn. cbn in H1. rewrite <- H1.
