@@ -304,7 +304,7 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (Env -> ExtMap -
               | IVar n => StackEInterp tl ((fun e et => (StackLookupEnv n e))::stack) env ext partial
               | IAcc n => match stack with
                           | s1::s2::tl2 => StackEInterp tl ((fun e et => let et' := adv_map (- Z.of_nat n) et
-                                                                         in Acc_sem (Fsem_stack s1 e et') n (s1 e et)) :: tl2) env ext partial
+                                                                         in Acc_sem (Fsem_stack s1 e et') n (s2 e et)) :: tl2) env ext partial
                           | _ => None
                           end
               end
@@ -481,7 +481,7 @@ Proof. intro. induction e using Exp_ind'; intros.
          cbn in H3. unfold pure in H3. unfold app3 in H3. inversion H3. cbn.
          repeat rewrite <- app_assoc.
          rewrite IHe1 with (expis := (l ++ l2 ++ [IAcc d] ++ l1)) (f :=  (fun (env1 : Env) (ext2 : ExtMap) =>
-                                                                       E[| e1 |] env1 (ExtMap_to_ExtEnv ext2))).
+                                                                       E[| e2 |] env1 (ExtMap_to_ExtEnv ext2))).
          rewrite IHe2 with (expis := (l2 ++ [IAcc d] ++ l1)) (f :=  (fun (env1 : Env) (ext2 : ExtMap) =>
                                                                        E[| e1 |] env1 (ExtMap_to_ExtEnv ext2))).
          + rewrite <- H1. cbn. assert (H5: (fun (e : Env) (et : ExtMap) =>
@@ -489,14 +489,13 @@ Proof. intro. induction e using Exp_ind'; intros.
         (Fsem_stack
            (fun (env1 : Env) (ext2 : ExtMap) =>
             E[| e1|] env1 (ExtMap_to_ExtEnv ext2)) e
-           (adv_map (- Z.of_nat d) et)) d
-        (E[| e1|] e (ExtMap_to_ExtEnv et))) = (fun (env1 : Env) (ext2 : ExtMap) =>
+           (adv_map (- Z.of_nat d) et)) d (E[| e1|] e (ExtMap_to_ExtEnv et))) = (fun (env1 : Env) (ext2 : ExtMap) =>
       Acc_sem
         (Fsem E[| e1|] env1
            (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))) d
         (E[| e2|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))))).
            apply functional_extensionality. intros. apply functional_extensionality. intros.
-           *
+           * 
          
  
 (* This proof needs refactoring, but it works for OP.
