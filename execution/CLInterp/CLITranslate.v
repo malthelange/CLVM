@@ -484,17 +484,19 @@ Proof. intro. induction e using Exp_ind'; intros.
                                                                        E[| e1 |] env1 (ExtMap_to_ExtEnv ext2))).
          rewrite IHe2 with (expis := (l2 ++ [IAcc d] ++ l1)) (f :=  (fun (env1 : Env) (ext2 : ExtMap) =>
                                                                        E[| e1 |] env1 (ExtMap_to_ExtEnv ext2))).
-         + rewrite <- H1. cbn. assert (H5: (fun (_ : Env) (et : ExtMap) =>
+         + rewrite <- H1. cbn. assert (H5: (fun (e : Env) (et : ExtMap) =>
       Acc_sem
         (Fsem_stack
            (fun (env1 : Env) (ext2 : ExtMap) =>
-            E[| e1|] env1 (ExtMap_to_ExtEnv ext2)) env0
+            E[| e1|] env1 (ExtMap_to_ExtEnv ext2)) e
            (adv_map (- Z.of_nat d) et)) d
-        (E[| e1|] env0 (ExtMap_to_ExtEnv extM))) = (fun (env1 : Env) (ext2 : ExtMap) =>
+        (E[| e1|] e (ExtMap_to_ExtEnv et))) = (fun (env1 : Env) (ext2 : ExtMap) =>
       Acc_sem
-        (Fsem E[| e1|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2)))
-        d (E[| e2|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))))).
+        (Fsem E[| e1|] env1
+           (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))) d
+        (E[| e2|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))))).
            apply functional_extensionality. intros. apply functional_extensionality. intros.
+           *
          
  
 (* This proof needs refactoring, but it works for OP.
