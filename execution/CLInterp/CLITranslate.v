@@ -303,8 +303,8 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (Env -> ExtMap -
               (** Might need to change this *)
               | IVar n => StackEInterp tl ((fun e et => (StackLookupEnv n e))::stack) env ext partial
               | IAcc n => match stack with
-                          | s1::s2::tl2 => StackEInterp tl ((fun e et => let ext' := adv_map (- Z.of_nat n) et
-                                                                         in Acc_sem (Fsem_stack s1 env ext') n (s1 env ext)) :: tl2) env ext partial
+                          | s1::s2::tl2 => StackEInterp tl ((fun e et => let et' := adv_map (- Z.of_nat n) et
+                                                                         in Acc_sem (Fsem_stack s1 e et') n (s1 e et)) :: tl2) env ext partial
                           | _ => None
                           end
               end
@@ -494,7 +494,7 @@ Proof. intro. induction e using Exp_ind'; intros.
       Acc_sem
         (Fsem E[| e1|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2)))
         d (E[| e2|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))))).
-           apply functional_extensionality. intros. apply functional_extensionality. intros. Admitted.
+           apply functional_extensionality. intros. apply functional_extensionality. intros.
          
  
 (* This proof needs refactoring, but it works for OP.
