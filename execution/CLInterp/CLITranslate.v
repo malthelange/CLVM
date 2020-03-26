@@ -463,10 +463,19 @@ Qed.
                             apply Eq1. reflexivity. discriminate. discriminate. discriminate.
 *)
 
+Lemma AdvanceMapSound : forall (ext: ExtMap) (d i: Z) (l : ObsLabel),
+FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
+Proof.
+  Admitted.
+  
 Lemma AdvanceMap1 : forall (ext: ExtMap) (d : Z),
     adv_ext d (ExtMap_to_ExtEnv ext)  = ExtMap_to_ExtEnv (adv_map d ext).
 Proof.
-Admitted.
+  intros. unfold ExtMap_to_ExtEnv. unfold adv_ext.
+  repeat (apply functional_extensionality; intros).
+  rewrite AdvanceMapSound. reflexivity.
+Qed.
+
 
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction)
                                  (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap) (f: Env -> ExtMap -> option Val),
