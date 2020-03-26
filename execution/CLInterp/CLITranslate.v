@@ -463,6 +463,11 @@ Qed.
                             apply Eq1. reflexivity. discriminate. discriminate. discriminate.
 *)
 
+Lemma AdvanceMap1 : forall (ext: ExtMap) (d : Z),
+    adv_ext d (ExtMap_to_ExtEnv ext)  = ExtMap_to_ExtEnv (adv_map d ext).
+Proof.
+Admitted.
+
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction)
                                  (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap) (f: Env -> ExtMap -> option Val),
     expis = l0 ++ l1 -> CompileE e = Some l0 -> (fun env1 ext2 => Esem e env1 (ExtMap_to_ExtEnv ext2)) = f -> 
@@ -480,25 +485,35 @@ Proof. intro. induction e using Exp_ind'; intros.
          destruct (CompileE e2)  eqn:Eqc2; destruct (CompileE e1) eqn:Eqc1; try (cbn in H1; discriminate).
          cbn in H3. unfold pure in H3. unfold app3 in H3. inversion H3. cbn.
          repeat rewrite <- app_assoc.
-         rewrite IHe1 with (expis := (l ++ l2 ++ [IAcc d] ++ l1)) (f :=  (fun (env1 : Env) (ext2 : ExtMap) =>
-                                                                       E[| e2 |] env1 (ExtMap_to_ExtEnv ext2))).
-         rewrite IHe2 with (expis := (l2 ++ [IAcc d] ++ l1)) (f :=  (fun (env1 : Env) (ext2 : ExtMap) =>
-                                                                       E[| e1 |] env1 (ExtMap_to_ExtEnv ext2))).
+         rewrite IHe2 with (expis := (l ++ l2 ++ [IAcc d] ++ l1)) (f :=  (fun (env1 : Env) (ext2 : ExtMap) =>
+                                                                            E[| e2 |] env1 (ExtMap_to_ExtEnv ext2))); (try reflexivity).
+         rewrite IHe1 with (expis := (l2 ++ [IAcc d] ++ l1)) (f :=  (fun (env1 : Env) (ext2 : ExtMap) =>
+                                                                       E[| e1 |] env1 (ExtMap_to_ExtEnv ext2))); (try reflexivity).
          + rewrite <- H1. cbn. assert (H5: (fun (e : Env) (et : ExtMap) =>
       Acc_sem
-        (Fsem_stack
-           (fun (env1 : Env) (ext2 : ExtMap) =>
-            E[| e1|] env1 (ExtMap_to_ExtEnv ext2)) e
-           (adv_map (- Z.of_nat d) et)) d
-        (E[| e2|] e (ExtMap_to_ExtEnv et))) = (fun (env1 : Env) (ext2 : ExtMap) =>
+        (Fsem_stack (fun (env1 : Env) (ext2 : ExtMap) => E[| e1|] env1 (ExtMap_to_ExtEnv ext2)) e
+           (adv_map (- Z.of_nat d) et)) d (E[| e2|] e (ExtMap_to_ExtEnv (adv_map (- Z.of_nat d) et)))) = (fun (env1 : Env) (ext2 : ExtMap) =>
       Acc_sem
         (Fsem E[| e1|] env1
            (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))) d
         (E[| e2|] env1 (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext2))))).
            apply functional_extensionality. intros. apply functional_extensionality. intros.
-           * unfold Fsem_stack. unfold Fsem.
-         
- 
+           * unfold Fsem_stack. unfold Fsem. assert (H6:  (fun (m : nat) (x1 : option Val) =>
+     do x' <- x1;
+     E[| e1|] (x' :: x)
+       (ExtMap_to_ExtEnv (adv_map (Z.of_nat m) (adv_map (- Z.of_nat d) x0)))) = (fun (m : nat) (x1 : option Val) =>
+     do x' <- x1;
+     E[| e1|] (x' :: x)
+      (adv_ext (Z.of_nat m) (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv x0))))).
+             apply functional_extensionality. intros. rewrite <- AdvanceMap1. rewrite <- AdvanceMap1. reflexivity.
+             rewrite H6. rewrite AdvanceMap1. reflexivity.
+           * rewrite H5. reflexivity.
+         + apply env.
+         + apply extM.
+         + apply env.
+         + apply extM.
+Admitted.
+x 
 (* This proof needs refactoring, but it works for OP.
 destruct op eqn:EqOp; unfold vmE. 
     inversion H. destruct args. discriminate. destruct args. discriminate. destruct args.
