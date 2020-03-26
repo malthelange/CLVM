@@ -395,22 +395,6 @@ Lemma TranslateMapSound : forall (extM : ExtMap) (l : ObsLabel) (i : Z) (v: Val)
     FMap.find  (l, i) extM = Some v -> (ExtMap_to_ExtEnv extM) l i = v.
 Proof. intros. unfold ExtMap_to_ExtEnv. rewrite H. reflexivity. Qed.
 
-(* Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction) (v : option Val)
-                                 (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap),
-    expis = l0 ++ l1 -> CompileE e = Some l0 -> Esem e env (ExtMap_to_ExtEnv extM) = v -> 
-    StackEInterp (l0 ++ l1) stack env extM false = StackEInterp l1 ((fun env ext => v)::stack) env extM false.
-Proof. intro. induction e; intros.
-       - admit.
-       - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
-         unfold find_default. *)
-
-
-(* TODO: The problem here is that i don't get the induction hypothesis, i don't know how to fix this
-                 without chaning the CL implementation*) (* destruct op.
-         + inversion H0. destruct args. discriminate. destruct args. discriminate. destruct args.
-           unfold LApp3 in H3. unfold liftM3 in H3. destruct (CompileE e0) eqn:Eq1. destruct (CompileE e) eqn:Eq2.
-           cbn in H3. unfold app3 in H3. unfold pure in H3. inversion H3.
-           * ad *)
 
 Lemma all_apply'' {A} (P: A -> Prop) (x: A) (xs: list A) :
   all P (x::xs) -> P x /\ (all P xs).
