@@ -513,39 +513,18 @@ Proof. intro. induction e using Exp_ind'; intros.
          + apply env.
          + apply extM.
 Admitted.
-x 
-(* This proof needs refactoring, but it works for OP.
-destruct op eqn:EqOp; unfold vmE. 
-    inversion H. destruct args. discriminate. destruct args. discriminate. destruct args.
-      unfold LApp3 in H1. unfold liftM3 in H1. destruct (CompileE e0) eqn:Eq1. destruct (CompileE e) eqn:Eq2.
-      cbn in H1. unfold app3 in H1. unfold pure in H1. inversion H1. cbn.
-      rewrite TranlateExpressionStep with (expis := expis) (e:= e0) (f := (fun env1 ext1 => (E[| e0|]) env1 (ExtMap_to_ExtEnv ext1))).
-      rewrite TranlateExpressionStep with (expis := (l0 ++ [IOp op])) (e:= e) (f := (fun env1 ext1 => (E[| e|]) env1 (ExtMap_to_ExtEnv ext1))).
-      cbn.
-      destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3; try reflexivity.
-      destruct (E[| e0|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4; try reflexivity.
-      apply env. apply extM. rewrite EqOp. reflexivity. apply Eq2. reflexivity. apply env. apply extM. symmetry. apply H2. apply Eq1.
-      reflexivity. cbn in H1.  discriminate. cbn in H1.  discriminate. discriminate.
-*)
  
+
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
     CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = vmE expis env extM.
 Proof.
-  intro.  induction e using Exp_ind'; intros.
-  - admit.
-  - unfold vmE. inversion H. cbn. unfold find_default. destruct (FMap.find (l,i)) eqn:Eq.
-    + apply TranslateMapSound in Eq. rewrite Eq. reflexivity.
-    + unfold ExtMap_to_ExtEnv.  rewrite Eq. reflexivity.
-  - inversion H. cbn. rewrite lookupTranslateSound. destruct (StackLookupEnv (translateVarToNat v)); reflexivity.
-  - unfold vmE. inversion H. unfold LApp3 in H1. unfold liftM3 in H1.
-    destruct (CompileE e2) eqn:Eqc2; destruct (CompileE e1) eqn:Eqc1; try (cbn in H1; discriminate).
-    cbn in H1. unfold pure in H1. unfold app3 in H1. inversion H1.
-    rewrite TranlateExpressionStep with (v :=  E[| e2|] env (ExtMap_to_ExtEnv extM)) (e := e2) (expis := expis).
-    rewrite TranlateExpressionStep with (v :=  E[| e1|] env (ExtMap_to_ExtEnv extM)) (e := e1) (expis := expis).
-    + cbn. unfold Fsem_stack. unfold Fsem. cbn. 
-    + symmetry. apply H2.
-    + apply Eqc2.
-    + reflexivity.
+  intros. unfold vmE. rewrite (app_nil_end expis).
+  rewrite TranlateExpressionStep with (e:=e) (expis:= (expis ++ []))
+                                      (f := (fun env1 ext1 => E[| e|] env1 (ExtMap_to_ExtEnv ext1))); (try reflexivity).
+  - apply env.
+  - apply extM.
+  - apply H.
+Qed.
 
 Definition vmC (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
   StackCInterp instrs [] env ext.
