@@ -266,7 +266,7 @@ Proof.
        + induction (FMap.elements m).
          * contradiction.
          * destruct a, p. cbn in H2. destruct H2. cbn. left. assert (Hk : k2 = z - d).
-           { apply pair_equal_spec.
+           { apply pair_equal_spec in H0.
        
 
 Lemma AdvanceMapSound : forall (ext: ExtMap) (d i res: Z) (l : ObsLabel),
