@@ -8,6 +8,8 @@ Require Import Monads.
 Require Import Blockchain.
 Require Import Extras.
 Require Import Containers.
+Require Import Sorting.Permutation.
+Require Import Coq.Init.Datatypes.
 
 
 Require Import Serializable.
@@ -226,6 +228,64 @@ Definition empt : FMap (ObsLabel * Z) Val := FMap.empty.
 
 Definition adv_map (d : Z) (e : ExtMap) : ExtMap
   := FMap.of_list (List.map (fun x: (ObsLabel * Z * Val) => match x with (l , z , v) => (l, z - d, v) end) (FMap.elements e)).
+
+Definition exmp : ExtMap := FMap.empty.
+
+Lemma in_adv_map (k1: ObsLabel) (v : Val) (d k2: Z) (m : ExtMap) :
+  In ((k1, k2), v) (FMap.elements (adv_map d m)) <->
+  In ((k1, k2 + d), v) (FMap.elements m).
+Proof.
+  split.
+   unfold adv_map. assert (H1: Permutation (FMap.elements
+           (FMap.of_list
+              (map
+                 (fun x : ObsLabel * Z * Val =>
+                  let (p, v) := x in
+                  let (l, z) := p in (l, z - d, v))
+                 (FMap.elements m))))  
+              (map
+                 (fun x : ObsLabel * Z * Val =>
+                  let (p, v) := x in
+                  let (l, z) := p in (l, z - d, v))
+                 (FMap.elements m))).
+     - rewrite FMap.elements_of_list.
+       + apply Permutation_refl.
+       + admit.
+     - intro. assert (H2: In (k1, k2, v) (map
+            (fun x : ObsLabel * Z * Val =>
+             let (p, v) := x in let (l, z) := p in (l, z - d, v))
+            (FMap.elements m))).
+       + apply Permutation_in with (l := (FMap.elements
+           (FMap.of_list
+              (map
+                 (fun x : ObsLabel * Z * Val =>
+                  let (p, v) := x in
+                  let (l, z) := p in (l, z - d, v))
+                 (FMap.elements m))))).
+         apply H1. apply H.
+       + induction (FMap.elements m).
+         * contradiction.
+         * destruct a, p. cbn in H2. destruct H2. cbn. left. assert (Hk : k2 = z - d).
+           { apply pair_equal_spec.
+       
+
+Lemma AdvanceMapSound : forall (ext: ExtMap) (d i res: Z) (l : ObsLabel),
+FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
+Proof. intros. destruct (FMap.find _ _) eqn:find.
+  - apply FMap.In_elements in find.
+    symmetry.
+    apply FMap.In_elements.
+    rewrite Z.add_comm in find.
+    now apply in_adv_map.
+  - symmetry.
+    rewrite <- FMap.not_In_elements with (k:= (l, d + i)) (m := ext) in find.
+    apply FMap.not_In_elements.
+    intros v isin.
+    specialize (find v).
+    rewrite Z.add_comm in find.
+    now apply in_adv_map in isin.
+Qed.
+  
 
 (** Definition of transactions and traces for CL and CLVM along with combinators *)
 
