@@ -223,15 +223,9 @@ Definition ExtMap_to_ExtEnv (extM : ExtMap) : ExtEnv := fun l i => match FMap.fi
 
 Definition empt : FMap (ObsLabel * Z) Val := FMap.empty.
 
-Fixpoint adv_map_aux (l : list (ObsLabel * Z * Val)) (d : Z) :=
-  match l with
-  | [] => []
-  | (l , z , v)::tl => (l, z - d, v)::(adv_map_aux tl d)
-  end.
-
 
 Definition adv_map (d : Z) (e : ExtMap) : ExtMap
-  := FMap.of_list (adv_map_aux (FMap.elements e) d).
+  := FMap.of_list (List.map (fun x: (ObsLabel * Z * Val) => match x with (l , z , v) => (l, z - d, v) end) (FMap.elements e)).
 
 (** Definition of transactions and traces for CL and CLVM along with combinators *)
 

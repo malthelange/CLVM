@@ -403,7 +403,6 @@ Proof. intros. inversion H. split.
        - apply H3.
 Qed.
 
-
 (** This is a proof for one case of Op-expressions. In principle i could just copy this 16 times, with a small correction to the asssertion,
     and a the number of destructs for args. But that is way way too messy. So i need some way to refactor this into cleaner steps.
     It might be worth it to look into the CL repository for already existing tactics.
@@ -449,8 +448,7 @@ Qed.
 
 Lemma AdvanceMapSound : forall (ext: ExtMap) (d i: Z) (l : ObsLabel),
 FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
-Proof.
-  Admitted.
+Proof. Admitted.
   
 Lemma AdvanceMap1 : forall (ext: ExtMap) (d : Z),
     adv_ext d (ExtMap_to_ExtEnv ext)  = ExtMap_to_ExtEnv (adv_map d ext).
@@ -466,7 +464,7 @@ Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (exp
     expis = l0 ++ l1 -> CompileE e = Some l0 -> (fun env1 ext2 => Esem e env1 (ExtMap_to_ExtEnv ext2)) = f -> 
     StackEInterp (l0 ++ l1) stack env extM false =  StackEInterp l1 (f::stack) env extM false.
 Proof. intro. induction e using Exp_ind'; intros.
-       - admit.
+       - destruct op. 
        - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
          unfold find_default. rewrite H1. reflexivity.
        - inversion H0. cbn. cbn in H1. rewrite <- H1.
