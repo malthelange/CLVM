@@ -265,7 +265,10 @@ Proof.
          apply H1. apply H.
        + induction (FMap.elements m).
          * contradiction.
-         * destruct a, p. cbn in H2. destruct H2. cbn. left. inversion H0. rewrite Z.sub_add. reflexivity. cbn. right. 
+         * destruct a, p. cbn in H2. destruct H2. cbn. left. inversion H0. rewrite Z.sub_add. reflexivity. cbn. right.
+           apply IHl. rewrite FMap.elements_of_list. reflexivity. admit.
+           apply H.
+           
        
 
 Lemma AdvanceMapSound : forall (ext: ExtMap) (d i res: Z) (l : ObsLabel),
