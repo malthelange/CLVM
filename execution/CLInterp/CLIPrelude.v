@@ -231,11 +231,24 @@ Definition adv_map (d : Z) (e : ExtMap) : ExtMap
 
 Definition exmp : ExtMap := FMap.empty.
 
-Lemma in_adv_map (k1: ObsLabel) (v : Val) (d k2: Z) (m : ExtMap) :
+Lemma in_adv_map  (m : ExtMap) (k1: ObsLabel) (v : Val) (d k2: Z) :
   In ((k1, k2), v) (FMap.elements (adv_map d m)) <->
   In ((k1, k2 + d), v) (FMap.elements m).
 Proof.
-  split.
+  unfold adv_map.
+  remember (map
+             (fun x : ObsLabel * Z * Val =>
+              let (p, v0) := x in
+              let (l, z) := p in
+              (l, z - d, v0))
+             (FMap.elements m)) as l0.
+  assert (H1: Permutation (FMap.elements (FMap.of_list l0)) l0).
+  subst l0.
+  apply FMap.elements_of_list. clear. pose proof (FMap.NoDup_keys m) as nodup_keys.
+  unfold FMap.keys in nodup_keys.  
+  induction (FMap.elements m) as [|[k v1] l IH] eqn:Eq.
+  
+(*  split.
    unfold adv_map. assert (H1: Permutation (FMap.elements
            (FMap.of_list
               (map
@@ -267,7 +280,7 @@ Proof.
          * contradiction.
          * destruct a, p. cbn in H2. destruct H2. cbn. left. inversion H0. rewrite Z.sub_add. reflexivity. cbn. right.
            apply IHl. rewrite FMap.elements_of_list. reflexivity. admit.
-           apply H.
+           apply H. *)
            
        
 
