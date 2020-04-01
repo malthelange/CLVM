@@ -264,7 +264,7 @@ Proof.
     apply (in_map fst) in H0. contradiction.
     destruct p0, p. inversion H. assert (H5: z = z0).
     lia. rewrite H5. reflexivity.
-  - subst l0. 
+  - subst l0.
     
 
     
