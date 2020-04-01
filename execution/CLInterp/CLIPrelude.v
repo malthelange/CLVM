@@ -264,7 +264,7 @@ Proof.
     apply (in_map fst) in H0. contradiction.
     destruct p0, p. inversion H. assert (H5: z = z0).
     lia. rewrite H5. reflexivity.
-  -
+  - subst l0. 
     
 
     
@@ -286,7 +286,7 @@ Proof.
        + admit.
      - intro. assert (H2: In (k1, k2, v) (map
             (fun x : ObsLabel * Z * Val =>
-             let (p, v) := x in let (l, z) := p in (l, z - d, v))
+             let (p, v) := x in let (l, z) := p in (l, z - d, v))#
             (FMap.elements m))).
        + apply Permutation_in with (l := (FMap.elements
            (FMap.of_list
