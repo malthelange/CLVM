@@ -10,6 +10,7 @@ Require Import Extras.
 Require Import Containers.
 Require Import Sorting.Permutation.
 Require Import Coq.Init.Datatypes.
+Require Import Coq.micromega.Lia.
 
 
 Require Import Serializable.
@@ -247,8 +248,26 @@ Proof.
   apply FMap.elements_of_list. clear. pose proof (FMap.NoDup_keys m) as nodup_keys.
   unfold FMap.keys in nodup_keys. unfold ExtMap in m.
   induction (FMap.elements m); try easy.
-  - 
-  
+  - inversion nodup_keys. subst.
+    constructor; auto.
+    clear -H1. intros isin.
+    fold (map (fun a : (ObsLabel * Z * Val) =>
+                 (let (p, v0) := a in let (l0, z) := p
+                                      in (l0, z - d, v0)) )l) in isin.
+    fold (map fst (map (fun a : (ObsLabel * Z * Val) =>
+                 (let (p, v0) := a in let (l0, z) := p
+                                      in (l0, z - d, v0)) )l)) in isin.
+    rewrite map_map in isin.
+    apply in_map_iff in isin.
+    destruct isin. destruct H. destruct a. destruct x.
+    unfold fst in H. replace p0 with p in *.
+    apply (in_map fst) in H0. contradiction.
+    destruct p0, p. inversion H. assert (H5: z = z0).
+    lia. rewrite H5. reflexivity.
+  -
+    
+
+    
 (*  split.
    unfold adv_map. assert (H1: Permutation (FMap.elements
            (FMap.of_list
