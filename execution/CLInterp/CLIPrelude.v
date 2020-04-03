@@ -269,8 +269,12 @@ Proof.
     + inversion H0. destruct a. destruct p. cbn. left. assert (H5: z = z - d + d) by lia.
       rewrite <- H5. reflexivity.
     + right. apply IHl. apply H0.
-  - inversion H. destruct a. destruct p. cbn. left. unfold adv_elem.
-    
+  - inversion H.
+    + destruct a. destruct p. cbn. left. unfold adv_elem.
+      unfold id. unfold base.prod_map. cbn. inversion H0.
+      replace (k2 + d - d) with k2 by lia. reflexivity.
+    + apply IHl in H0. right. apply H0.
+Qed.
 
 Lemma perm_adv_list (m : FMap (ObsLabel * Z) Val) (d : Z)
       (l : list (ObsLabel * Z * Val)):
