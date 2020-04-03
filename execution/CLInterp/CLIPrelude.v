@@ -262,8 +262,7 @@ Definition exmp : ExtMap := FMap.empty.
 Lemma map_adv_list_sound l k1 k2 v d :
   In ((k1, k2), v) (adv_list d l) <->
   In ((k1, k2 + d), v) l.
-Proof.
-  unfold adv_list.
+Admitted.
 
 (*
 For some reason coq won't recognize (FMap.elements m) as being the same statement everywhere
@@ -311,42 +310,6 @@ Proof.
           (l:= (map (fun x : ObsLabel * Z * Val => let (p, v0) := x in let (l, z) := p in (l, z - d, v0))
                     (FMap.elements m))). apply Permutation_sym in H1. apply H1.    
 *)
-    
-
-    
-(*  split.
-   unfold adv_map. assert (H1: Permutation (FMap.elements
-           (FMap.of_list
-              (map
-                 (fun x : ObsLabel * Z * Val =>
-                  let (p, v) := x in
-                  let (l, z) := p in (l, z - d, v))
-                 (FMap.elements m))))  
-              (map
-                 (fun x : ObsLabel * Z * Val =>
-                  let (p, v) := x in
-                  let (l, z) := p in (l, z - d, v))
-                 (FMap.elements m))).
-     - rewrite FMap.elements_of_list.
-       + apply Permutation_refl.
-       + admit.
-     - intro. assert (H2: In (k1, k2, v) (map
-            (fun x : ObsLabel * Z * Val =>
-             let (p, v) := x in let (l, z) := p in (l, z - d, v))#
-            (FMap.elements m))).
-       + apply Permutation_in with (l := (FMap.elements
-           (FMap.of_list
-              (map
-                 (fun x : ObsLabel * Z * Val =>
-                  let (p, v) := x in
-                  let (l, z) := p in (l, z - d, v))
-                 (FMap.elements m))))).
-         apply H1. apply H.
-       + induction (FMap.elements m).
-         * contradiction.
-         * destruct a, p. cbn in H2. destruct H2. cbn. left. inversion H0. rewrite Z.sub_add. reflexivity. cbn. right.
-           apply IHl. rewrite FMap.elements_of_list. reflexivity. admit.
-           apply H. *)
            
        
 
