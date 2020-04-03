@@ -227,11 +227,47 @@ Definition ExtMap_to_ExtEnv (extM : ExtMap) : ExtEnv := fun l i => match FMap.fi
 Definition empt : FMap (ObsLabel * Z) Val := FMap.empty.
 
 
+Definition adv_elem (d : Z) ( x : ObsLabel * Z * Val) : ObsLabel * Z * Val
+  := base.prod_map (base.prod_map id (fun x => x - d)) id x.
+
+Definition adv_list (d : Z) (xs : list (ObsLabel * Z * Val))
+  : list (ObsLabel * Z * Val)
+  := map (adv_elem d) xs.
+
+Definition adv_map (d : Z) (e : ExtMap) : ExtMap
+  := FMap.of_list (adv_list d (FMap.elements e)).
+
+(*
 Definition adv_map (d : Z) (e : ExtMap) : ExtMap
   := FMap.of_list (List.map (fun x: (ObsLabel * Z * Val) => match x with (l , z , v) => (l, z - d, v) end) (FMap.elements e)).
+ *)
+
+Lemma prod_map_compose_fst { A A' B B' } (f : A -> A') (g : B -> B'):
+  compose fst  (base.prod_map f g) = compose f  fst.
+ unfold compose. apply functional_extensionality. intros. unfold base.prod_map. cbn. reflexivity.
+Qed.
+
+Lemma prod_map_inj { A A' B B' } (f : A -> A') (g : B -> B') :
+  FinFun.Injective f ->
+  FinFun.Injective g ->
+  FinFun.Injective (base.prod_map f g).
+Proof.
+  unfold FinFun.Injective. intros. unfold base.prod_map in H1.
+  inversion H1. apply injective_projections. apply H. apply H3.
+  apply H0. apply H4.
+Qed.
 
 Definition exmp : ExtMap := FMap.empty.
 
+Lemma map_adv_list_sound l k1 k2 v d :
+  In ((k1, k2), v) (adv_list d l) <->
+  In ((k1, k2 + d), v) l.
+Proof.
+  unfold adv_list.
+
+(*
+For some reason coq won't recognize (FMap.elements m) as being the same statement everywhere
+there does not seem to be ant reason at all for this. This wasted about a weeks work.
 Lemma in_adv_map  (m : FMap (ObsLabel * Z) Val) (k1: ObsLabel) (v : Val) (d k2: Z) :
   In ((k1, k2), v) (FMap.elements (adv_map d m)) <->
   In ((k1, k2 + d), v) (FMap.elements m).
@@ -264,7 +300,17 @@ Proof.
     apply (in_map fst) in H0. contradiction.
     destruct p0, p. inversion H. assert (H5: z = z0).
     lia. rewrite H5. reflexivity.
-  - subst l0.
+  - subst l0. split; intros.
+    + apply Permutation_in with (x := (k1,k2,v)) in H1; try (apply H).
+      induction (FMap.elements m). contradiction.
+      inversion H1.
+      * destruct a. destruct p. inversion H0. subst. constructor.
+        assert (H2: z = z - d + d). omega. rewrite <- H2. reflexivity.
+      * apply IHl in H0. right. apply H0.
+    + apply Permutation_in with
+          (l:= (map (fun x : ObsLabel * Z * Val => let (p, v0) := x in let (l, z) := p in (l, z - d, v0))
+                    (FMap.elements m))). apply Permutation_sym in H1. apply H1.    
+*)
     
 
     
