@@ -237,11 +237,6 @@ Definition adv_list (d : Z) (xs : list (ObsLabel * Z * Val))
 Definition adv_map (d : Z) (e : ExtMap) : ExtMap
   := FMap.of_list (adv_list d (FMap.elements e)).
 
-(*
-Definition adv_map (d : Z) (e : ExtMap) : ExtMap
-  := FMap.of_list (List.map (fun x: (ObsLabel * Z * Val) => match x with (l , z , v) => (l, z - d, v) end) (FMap.elements e)).
- *)
-
 Lemma prod_map_compose_fst { A A' B B' } (f : A -> A') (g : B -> B'):
   compose fst  (base.prod_map f g) = compose f  fst.
  unfold compose. apply functional_extensionality. intros. unfold base.prod_map. cbn. reflexivity.
@@ -300,52 +295,7 @@ Proof.
   intros. apply prod_map_inj in H0. apply H0. unfold FinFun.Injective. intros. cbn in H1.
   apply H1.  unfold FinFun.Injective. intros. lia. apply H.
 Qed.
-(*
-For some reason coq won't recognize (FMap.elements m) as being the same statement everywhere
-there does not seem to be ant reason at all for this. This wasted about a weeks work.
-Lemma in_adv_map  (m : FMap (ObsLabel * Z) Val) (k1: ObsLabel) (v : Val) (d k2: Z) :
-  In ((k1, k2), v) (FMap.elements (adv_map d m)) <->
-  In ((k1, k2 + d), v) (FMap.elements m).
-Proof.
-  unfold adv_map. 
-  remember (map
-             (fun x : ObsLabel * Z * Val =>
-              let (p, v0) := x in
-              let (l, z) := p in
-              (l, z - d, v0))
-             (FMap.elements m)) as l0.
-  assert (H1: Permutation (FMap.elements (FMap.of_list l0)) l0).
-  subst l0.
-  apply FMap.elements_of_list. clear. pose proof (FMap.NoDup_keys m) as nodup_keys.
-  unfold FMap.keys in nodup_keys. unfold ExtMap in m.
-  induction (FMap.elements m); try easy.
-  - inversion nodup_keys. subst.
-    constructor; auto.
-    clear -H1. intros isin.
-    fold (map (fun a : (ObsLabel * Z * Val) =>
-                 (let (p, v0) := a in let (l0, z) := p
-                                      in (l0, z - d, v0)) )l) in isin.
-    fold (map fst (map (fun a : (ObsLabel * Z * Val) =>
-                 (let (p, v0) := a in let (l0, z) := p
-                                      in (l0, z - d, v0)) )l)) in isin.
-    rewrite map_map in isin.
-    apply in_map_iff in isin.
-    destruct isin. destruct H. destruct a. destruct x.
-    unfold fst in H. replace p0 with p in *.
-    apply (in_map fst) in H0. contradiction.
-    destruct p0, p. inversion H. assert (H5: z = z0).
-    lia. rewrite H5. reflexivity.
-  - subst l0. split; intros.
-    + apply Permutation_in with (x := (k1,k2,v)) in H1; try (apply H).
-      induction (FMap.elements m). contradiction.
-      inversion H1.
-      * destruct a. destruct p. inversion H0. subst. constructor.
-        assert (H2: z = z - d + d). omega. rewrite <- H2. reflexivity.
-      * apply IHl in H0. right. apply H0.
-    + apply Permutation_in with
-          (l:= (map (fun x : ObsLabel * Z * Val => let (p, v0) := x in let (l, z) := p in (l, z - d, v0))
-                    (FMap.elements m))). apply Permutation_sym in H1. apply H1.    
-*)
+
            
 Lemma AdvanceMapSound : forall (ext: ExtMap) (d i res: Z) (l : ObsLabel),
 FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
@@ -376,28 +326,7 @@ Proof. intros. destruct (FMap.find _ _) eqn:find.
           with (l := (FMap.elements (FMap.of_list (adv_list d (FMap.elements ext))))).
         apply H. apply isin. apply map_adv_list_sound in H1. contradiction.
 Qed.
-              
-(*
-Lemma AdvanceMapSound : forall (ext: ExtMap) (d i res: Z) (l : ObsLabel),
-FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
-Proof. intros. destruct (FMap.find _ _) eqn:find.
-  - apply FMap.In_elements in find.
-    symmetry.
-    apply FMap.In_elements.
-    rewrite Z.add_comm in find.
 
-
-
-    now apply in_adv_map.
-  - symmetry.
-    rewrite <- FMap.not_In_elements with (k:= (l, d + i)) (m := ext) in find.
-    apply FMap.not_In_elements.
-    intros v isin.
-    specialize (find v).
-    rewrite Z.add_comm in find.
-    now apply in_adv_map in isin.
-Qed. *)
-  
 
 (** Definition of transactions and traces for CL and CLVM along with combinators *)
 
