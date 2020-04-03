@@ -262,8 +262,23 @@ Definition exmp : ExtMap := FMap.empty.
 Lemma map_adv_list_sound l k1 k2 v d :
   In ((k1, k2), v) (adv_list d l) <->
   In ((k1, k2 + d), v) l.
-Admitted.
+Proof.
+  induction l; auto.
+  split; intros. 
+  - inversion H.
+    + inversion H0. destruct a. destruct p. cbn. left. assert (H5: z = z - d + d) by lia.
+      rewrite <- H5. reflexivity.
+    + right. apply IHl. apply H0.
+  - inversion H. destruct a. destruct p. cbn. left. unfold adv_elem.
+    
 
+Lemma perm_adv_list (m : FMap (ObsLabel * Z) Val) (d : Z)
+      (l : list (ObsLabel * Z * Val)):
+  NoDup (map fst l) ->
+  Permutation (FMap.elements (FMap.of_list (adv_list d l))) (adv_list d l).
+Proof. 
+  intros. apply FMap.elements_of_list.
+  Admitted.
 (*
 For some reason coq won't recognize (FMap.elements m) as being the same statement everywhere
 there does not seem to be ant reason at all for this. This wasted about a weeks work.
@@ -311,8 +326,6 @@ Proof.
                     (FMap.elements m))). apply Permutation_sym in H1. apply H1.    
 *)
            
-       
-
 Lemma AdvanceMapSound : forall (ext: ExtMap) (d i res: Z) (l : ObsLabel),
 FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
 Proof. intros. destruct (FMap.find _ _) eqn:find.
@@ -320,6 +333,40 @@ Proof. intros. destruct (FMap.find _ _) eqn:find.
     symmetry.
     apply FMap.In_elements.
     rewrite Z.add_comm in find.
+    unfold adv_map.
+    assert (H: Permutation (FMap.elements (FMap.of_list (adv_list d (FMap.elements ext))))
+                           (adv_list d (FMap.elements ext))).
+    apply perm_adv_list. apply ext. apply FMap.NoDup_keys.
+    apply Permutation_in with (l := (adv_list d (FMap.elements ext))). apply Permutation_sym in H.
+    apply H.
+    apply map_adv_list_sound. apply find.
+  - symmetry.
+    rewrite <- FMap.not_In_elements with (k:= (l, d + i)) (m := ext) in find.
+    apply FMap.not_In_elements.
+    intros v isin.
+    specialize (find v).
+    rewrite Z.add_comm in find.
+    unfold adv_map in isin.
+        assert (H: Permutation (FMap.elements (FMap.of_list (adv_list d (FMap.elements ext))))
+                           (adv_list d (FMap.elements ext))).
+        apply perm_adv_list. apply ext. apply FMap.NoDup_keys.
+        assert (H1:  In (l, i, v) (adv_list d (FMap.elements ext))).
+        apply Permutation_in
+          with (l := (FMap.elements (FMap.of_list (adv_list d (FMap.elements ext))))).
+        apply H. apply isin. apply map_adv_list_sound in H1. contradiction.
+Qed.
+              
+(*
+Lemma AdvanceMapSound : forall (ext: ExtMap) (d i res: Z) (l : ObsLabel),
+FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
+Proof. intros. destruct (FMap.find _ _) eqn:find.
+  - apply FMap.In_elements in find.
+    symmetry.
+    apply FMap.In_elements.
+    rewrite Z.add_comm in find.
+
+
+
     now apply in_adv_map.
   - symmetry.
     rewrite <- FMap.not_In_elements with (k:= (l, d + i)) (m := ext) in find.
@@ -328,7 +375,7 @@ Proof. intros. destruct (FMap.find _ _) eqn:find.
     specialize (find v).
     rewrite Z.add_comm in find.
     now apply in_adv_map in isin.
-Qed.
+Qed. *)
   
 
 (** Definition of transactions and traces for CL and CLVM along with combinators *)
