@@ -257,6 +257,8 @@ Proof.
   apply H0. apply H4.
 Qed.
 
+
+
 Definition exmp : ExtMap := FMap.empty.
 
 Lemma map_adv_list_sound l k1 k2 v d :
@@ -276,13 +278,28 @@ Proof.
     + apply IHl in H0. right. apply H0.
 Qed.
 
+
+
+Lemma map_map_compose :
+  forall (A B C : Type) (f : A -> B) (g : B -> C) (l : list A),
+    map g (map f l) = map (compose g f) l.
+Proof.
+  intros. induction l.
+  reflexivity.
+  cbn. rewrite IHl. reflexivity.
+Qed.
+
 Lemma perm_adv_list (m : FMap (ObsLabel * Z) Val) (d : Z)
       (l : list (ObsLabel * Z * Val)):
   NoDup (map fst l) ->
   Permutation (FMap.elements (FMap.of_list (adv_list d l))) (adv_list d l).
 Proof. 
-  intros. apply FMap.elements_of_list.
-  Admitted.
+  intros. apply FMap.elements_of_list. unfold adv_list. rewrite map_map_compose.
+  unfold adv_elem. rewrite prod_map_compose_fst. rewrite <- map_map_compose.
+  apply FinFun.Injective_map_NoDup. unfold FinFun.Injective.
+  intros. apply prod_map_inj in H0. apply H0. unfold FinFun.Injective. intros. cbn in H1.
+  apply H1.  unfold FinFun.Injective. intros. lia. apply H.
+Qed.
 (*
 For some reason coq won't recognize (FMap.elements m) as being the same statement everywhere
 there does not seem to be ant reason at all for this. This wasted about a weeks work.
