@@ -538,13 +538,22 @@ Proof.
   rewrite AdvanceMapSound. reflexivity. apply x0.
 Qed.
 
+Lemma TranlateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
+                                 (ext : ExtMap)  (stack : list (option Val)) (v: option Val),
+    expis = l0 ++ l1 ->
+    CompileE e = Some l0 ->
+    Esem e env (ExtMap_to_ExtEnv ext) = v ->
+    StackEInterp (l0 ++ l1) stack env ext false = StackEInterp l1 (v::stack) env ext false.
+Proof. intro. induction e using Exp_ind'; intros.
+       - destruct op; inversion H1; try destruct args; try discriminate; try destruct args; try discriminate; try destruct args; try discriminate.
+         +
 
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction)
                                  (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap) (f: Env -> ExtMap -> option Val),
     expis = l0 ++ l1 -> CompileE e = Some l0 -> (fun env1 ext2 => Esem e env1 (ExtMap_to_ExtEnv ext2)) = f -> 
     StackEInterp (l0 ++ l1) stack env extM false =  StackEInterp l1 (f::stack) env extM false.
 Proof. intro. induction e using Exp_ind'; intros.
-       - destruct op; inversion H1; try destruct args; try discriminate; try destruct args; try discriminate; try destruct args; try discriminate.
+       - destruct op; inversion H1; try destruct args; try discriminate; try destruct args; try discriminate; try destruct args; try discriminate.w
 
        - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
          unfold find_default. rewrite H1. reflexivity.
