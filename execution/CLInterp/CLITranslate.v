@@ -404,7 +404,7 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)
 (** Partial evaluation CLVM, we assume expressions only evaluate to None when some required observable is not present. 
     Meaning we assume all expressions are well-formed. Whenever an expression returns None we just evaluate to a Empty trace.*)
 
-Fixpoint StackCPartial (instrs : list CInstruction) (stack : list (option TraceM)) (env : Env) (exts: list ExtMap) (w_stack : list (bool * nat)) : option TraceM :=
+Fixpoint StackCPartial (instrs : list CInstruction) (stack : list (option TraceM)) (env : Env) (exts: list ExtMap) (w_stack : list (option (bool * nat))) : option TraceM :=
   match instrs with
   | [] => match stack with
          |[res] => res
@@ -441,30 +441,31 @@ Fixpoint StackCPartial (instrs : list CInstruction) (stack : list (option TraceM
                          | _ => None
                          end
     | CIIf expis n => match exts with | et::exts' =>
-                                       do w <- stack_within_sem expis n env et false;
-                                       let (branch, d_left) := w in
-                                       let d_passed := (n - d_left)%nat in
-                                       let et' := adv_map (Z.of_nat d_passed) et in
-                                       StackCInterp tl stack env (et'::exts') ((branch, d_passed)::w_stack)
+                                       match  stack_within_sem expis n env et false with
+                                       | Some (branch, d_left) => 
+                                         let d_passed := (n - d_left)%nat in
+                                         let et' := adv_map (Z.of_nat d_passed) et in
+                                         StackCPartial tl stack env (et'::exts') ((Some (branch, d_passed))::w_stack)
+                                       | _ => StackCPartial tl stack env exts ((None)::w_stack)
+                                       end
                                 | _ => None
                      end
     | CIIfEnd => match stack with
                 | t1::t2::tl2 => match w_stack with
-                              | w::w_stack' => 
+                              | (Some w)::w_stack' => 
                                 let (branch, d_passed) := w in
                                 do t1' <- t1;
                                 do t2' <- t2;
                                 let trace := delay_traceM d_passed (if branch then t1' else t2') in
-                                StackCInterp tl ((Some trace)::tl2) env (List.tl exts) w_stack'
+                                StackCPartial tl ((Some trace)::tl2) env (List.tl exts) w_stack'
+                              | None::w_stack' => StackCPartial tl ((Some empty_traceM)::tl2) env (List.tl exts) w_stack'
                               | _ => None
                               end
                 | _ => None
                 end
-                  
-    end   
     | CILet expis => do et <- hd_error exts;
-                     do v <- (StackEInterp expis [] env et false);
-                     StackCInterp tl stack (v::env) exts w_stack
+                    do v <- (StackEInterp expis [] env et false);
+                    StackCPartial tl stack (v::env) exts w_stack
     end
   end.
 
