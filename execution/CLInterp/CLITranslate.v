@@ -152,7 +152,7 @@ Inductive instruction :=
 | IPushB : bool -> instruction
 | IObs : ObsLabel -> Z -> instruction
 | IOp : Op -> instruction
-| IAccStart1 : nat -> instruction
+| IAccStart1 : Z -> instruction
 | IAccStart2 : instruction
 | IAccStep : instruction
 | IAccEnd : instruction
@@ -182,7 +182,7 @@ Fixpoint CompileE (e : Exp) : option (list instruction) :=
   | VarE v => Some [IVar (translateVarToNat v)]
   | Acc e1 d e2 => do s1 <- (CompileE e1);
                   do s2 <- (CompileE e2);
-                  Some ([IAccStart1 d] ++ s2 ++ [IAccStart2] ++ (repeat_app (IAccStep::s1) d) ++ [IAccEnd])
+                  Some ([IAccStart1 (Z.of_nat d)] ++ s2 ++ [IAccStart2] ++ (repeat_app (IAccStep::s1) d) ++ [IAccEnd])
   end.
 
 (** Definition of contract instructions in CLVM *)
@@ -266,32 +266,48 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (option Val)) (e
                  else
                    StackEInterp tl ((Some (find_default (l,i) ext (ZVal 0)))::stack) env ext partial
     | IOp op => match op with
-               | Add => match stack with (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
-                                        StackEInterp tl (Some (ZVal (z1 + z2))::tl2) env ext partial | _ => None
+               | Add => match stack with
+                       | (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                        StackEInterp tl (Some (ZVal (z1 + z2))::tl2) env ext partial
+                       | _ => None
                        end
-               | Sub => match stack with (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
-                                        StackEInterp tl (Some (ZVal (z1 - z2))::tl2) env ext partial | _ => None
+               | Sub => match stack with
+                       | (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                         StackEInterp tl (Some (ZVal (z1 - z2))::tl2) env ext partial
+                       | _ => None
                        end
-               | Mult => match stack with (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
-                                        StackEInterp tl (Some (ZVal (z1 * z2))::tl2) env ext partial | _ => None
+               | Mult => match stack with
+                        | (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                          StackEInterp tl (Some (ZVal (z1 * z2))::tl2) env ext partial
+                        | _ => None
                         end
-               | Div => match stack with (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
-                                        StackEInterp tl (Some (ZVal (z1 / z2))::tl2) env ext partial | _ => None
+               | Div => match stack with
+                       | (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                        StackEInterp tl (Some (ZVal (z1 / z2))::tl2) env ext partial
+                       | _ => None
                        end
                | And => match stack with (Some (BVal b1))::(Some (BVal b2))::tl2 =>
                                         StackEInterp tl (Some (BVal (b1 && b2))::tl2) env ext partial | _ => None
                        end
-               | Or => match stack with (Some (BVal b1))::(Some (BVal b2))::tl2 =>
-                                        StackEInterp tl (Some (BVal (b1 || b2))::tl2) env ext partial | _ => None
+               | Or => match stack with
+                      |(Some (BVal b1))::(Some (BVal b2))::tl2 =>
+                       StackEInterp tl (Some (BVal (b1 || b2))::tl2) env ext partial
+                      | _ => None
                       end
-               | Less => match stack with (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
-                                        StackEInterp tl (Some (BVal (z1 <? z2))::tl2) env ext partial | _ => None
+               | Less => match stack with
+                        |(Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                         StackEInterp tl (Some (BVal (z1 <? z2))::tl2) env ext partial
+                        | _ => None
                         end
-               | Leq => match stack with (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
-                                         StackEInterp tl (Some (BVal (z1 <=? z2))::tl2) env ext partial | _ => None
+               | Leq => match stack with
+                       |(Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                        StackEInterp tl (Some (BVal (z1 <=? z2))::tl2) env ext partial
+                       | _ => None
                         end
-               | Equal => match stack with (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
-                                         StackEInterp tl (Some (BVal (z1 =? z2))::tl2) env ext partial | _ => None
+               | Equal => match stack with
+                           | (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                             StackEInterp tl (Some (BVal (z1 =? z2))::tl2) env ext partial
+                           | _ => None
                          end
                | Cond => match stack with
                         | (Some (BVal b))::(Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
@@ -300,11 +316,20 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (option Val)) (e
                           StackEInterp tl ((Some (BVal (if b then b1 else b2)))::tl2) env ext partial
                         | _ => None
                         end
-               | Neq => match stack with ((Some (ZVal z))::tl2) => StackEInterp tl ((Some (ZVal (0 -z)))::tl2) env ext partial | _ => None end
+               | Not => match stack with
+                       | ((Some (BVal b))::tl2) => StackEInterp tl ((Some (BVal (negb b)))::tl2) env ext partial
+                       | _ => None end
+               | Neg => match stack with
+                       | ((Some (ZVal z))::tl2) => StackEInterp tl ((Some (ZVal (0 -z)))::tl2) env ext partial
+                       | _ => None end
+               | _ => None 
                end
-
     | IVar n => StackEInterp tl ((StackLookupEnv n env)::stack) env ext partial
-    | IAccStart1 n =>
+    | IAccStart1 z => StackEInterp tl stack env (adv_map (0-z) ext) partial
+    | IAccStart2 => match stack with (Some v)::tl2 => StackEInterp tl tl2 (v::env) ext partial | _ => None end
+    | IAccStep => match stack with (Some v)::tl2 => let env' := List.tl env in
+                                                 StackEInterp tl tl2 (v::env') (adv_map 1 ext) partial | _ => None end
+    | IAccEnd => StackEInterp tl stack (List.tl env) ext partial
     end
   end.
 
