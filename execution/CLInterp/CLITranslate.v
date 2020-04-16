@@ -559,13 +559,21 @@ Proof.
   rewrite AdvanceMapSound. reflexivity. apply x0.
 Qed.
 
+(*
+Lemma NoneInvariant : forall (l : list instruction) (env : Env) (ext: ExtMap) (stack1 stack2 : list (option Val)),
+    StackEInterp l stack1 env ext false = StackEInterp [] stack2 env ext false -> 
+    In None stack1 -> In None stack2.
+Proof.
+  intros. generalize dependent l. induction l.
+  - intros. inversion H. unfold In.
+
 Lemma NoNoneInvariant : forall (l : list instruction) (env : Env) (ext: ExtMap) (stack : list (option Val))
   ,
     StackEInterp l (None::stack) env ext false = None.
 Proof.
-  intro. induction l.
-  - intros. destruct stack; reflexivity.
-  - intros.
+  intros. 
+Qed.
+*)
     
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)),
@@ -587,6 +595,7 @@ Proof. intro. induction e using Exp_ind'; intros.
                (expis := l ++ [IOp Add] ++ l1).
            rewrite H with
                (expis := [IOp Add] ++ l1). rewrite Eq3. rewrite Eq4. cbn.
+           destruct (v). 
            
        - inversion H0. cbn in *. unfold ExtMap_to_ExtEnv. unfold find_default. reflexivity.
        - inversion H0. cbn in *. rewrite <- lookupTranslateSound. reflexivity.
