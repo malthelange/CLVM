@@ -173,10 +173,28 @@ Fixpoint CompileE (e : Exp) : option (list instruction) :=
   | OpE op args => match op with
                   | BLit b => Some [IPushB b]
                   | ZLit z => Some [IPushZ z]
-                  | Neg => match args with [exp1] => liftM2 List.app (CompileE exp1) (Some [IOp Neg]) | _ => None end
-                  | Not => match args with [exp1] => liftM2 List.app (CompileE exp1) (Some [IOp Not]) | _ => None end
-                  | Cond => match args with [exp1; exp2; exp3] => liftM2 List.app (LApp3 (CompileE exp3) (CompileE exp2) (CompileE exp1)) (Some [IOp Cond]) | _ => None end
-                  | op => match args with | [exp1; exp2] => LApp3 (CompileE exp2) (CompileE exp1) (Some [IOp op]) | _ => None end
+                  | Neg => match args with
+                          | [exp1] =>
+                            do s1 <- CompileE exp1;
+                            Some (s1 ++ [IOp Neg])
+                          | _ => None end
+                  | Not => match args with
+                          | [exp1] =>
+                            do s1 <- CompileE exp1;
+                            Some (s1 ++ [IOp Not])
+                          | _ => None end
+                  | Cond => match args with
+                           | [exp1; exp2; exp3] =>
+                             do s1 <- (CompileE exp1);
+                             do s2 <- (CompileE exp2);
+                             do s3 <- (CompileE exp3);
+                             Some (s3 ++ s2 ++ s1 ++ [IOp Cond])
+                           | _ => None end
+                  | op => match args with
+                         | [exp1; exp2] =>
+                           do s1 <- CompileE exp1;
+                           do s2 <- CompileE exp2;
+                           Some ( s2 ++ s1 ++ [IOp op]) | _ => None end
                   end
   | Obs l i => Some [IObs l i]
   | VarE v => Some [IVar (translateVarToNat v)]
@@ -351,20 +369,23 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)
     match hd with
     | CIZero => StackCInterp tl ((Some empty_traceM)::stack) env exts w_stack
     | CITransfer p1 p2 c => StackCInterp tl ((Some (singleton_traceM (singleton_transM p1 p2 c 1)))::stack) env exts w_stack
-    | CIScale expis => match stack with hd2::tl2 => do et <- hd_error exts;
-                                                 let trace :=
-                                                     (do z <- liftM toZ (StackEInterp expis [] env et false); liftM2 scale_traceM z hd2)
-                                                 in StackCInterp tl (trace::tl2) env exts w_stack
-                                   | [] => None
-                       end
-    | CIBoth => match stack with t1::t2::tl2 =>
-                                let trace := (liftM2 add_traceM t1 t2) in
-                                StackCInterp tl (trace::tl2) env exts w_stack
-                           | _ => None end
+    | CIScale expis => match stack with
+                      | hd2::tl2 =>
+                        do et <- hd_error exts;
+                        let trace :=
+                            (do z <- liftM toZ (StackEInterp expis [] env et false); liftM2 scale_traceM z hd2)
+                        in StackCInterp tl (trace::tl2) env exts w_stack
+                      | [] => None
+                      end
+    | CIBoth => match stack with
+               | t1::t2::tl2 =>
+                 let trace := (liftM2 add_traceM t1 t2) in
+                 StackCInterp tl (trace::tl2) env exts w_stack
+               | _ => None end
     | CITranslate n  => do et <- hd_error exts;
                        let et' := (adv_map (Z.of_nat n) et) in
                        StackCInterp tl stack env (et'::exts) w_stack
-    | CITranslateEnd n => match stack  with
+    | CITranslateEnd n => match stack with
                          |t::tl2 => match exts with
                                   | et::exts' =>
                                     do t' <- t;
@@ -538,22 +559,54 @@ Proof.
   rewrite AdvanceMapSound. reflexivity. apply x0.
 Qed.
 
+Lemma NoNoneInvariant : forall (l : list instruction) (env : Env) (ext: ExtMap) (stack : list (option Val))
+  ,
+    StackEInterp l (None::stack) env ext false = None.
+Proof.
+  intro. induction l.
+  - intros. destruct stack; reflexivity.
+  - intros.
+    
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
-                                 (ext : ExtMap)  (stack : list (option Val)) (v: option Val),
+                                 (ext : ExtMap)  (stack : list (option Val)),
     expis = l0 ++ l1 ->
     CompileE e = Some l0 ->
-    Esem e env (ExtMap_to_ExtEnv ext) = v ->
-    StackEInterp (l0 ++ l1) stack env ext false = StackEInterp l1 (v::stack) env ext false.
+    StackEInterp (l0 ++ l1) stack env ext false =
+    StackEInterp l1 ((Esem e env (ExtMap_to_ExtEnv ext))::stack) env ext false.
 Proof. intro. induction e using Exp_ind'; intros.
-       - destruct op; inversion H1; try destruct args; try discriminate; try destruct args; try discriminate; try destruct args; try discriminate.
-         +
-
+       - destruct op; inversion H1; try destruct args; try destruct args; try destruct args;
+           try discriminate;
+           try (destruct (CompileE e) eqn:Eq1);
+           try (destruct (CompileE e0) eqn:Eq2); try discriminate; inversion H3; cbn in *;
+             try (apply all_apply'' in H; destruct H);
+             try (apply all_apply'' in H2; destruct H2; clear H5);
+             try (repeat (rewrite <- app_assoc));
+             try (destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3);
+             try (destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4).
+         + rewrite H2 with
+               (expis := l ++ [IOp Add] ++ l1).
+           rewrite H with
+               (expis := [IOp Add] ++ l1). rewrite Eq3. rewrite Eq4. cbn.
+           
+       - inversion H0. cbn in *. unfold ExtMap_to_ExtEnv. unfold find_default. reflexivity.
+       - inversion H0. cbn in *. rewrite <- lookupTranslateSound. reflexivity.
+       - inversion H0.
+         destruct (CompileE e1) eqn:Eq1; try discriminate.
+         destruct (CompileE e2) eqn:Eq2; try discriminate.
+         cbn in *. clear H0. inversion H2. cbn in *. repeat rewrite <- app_assoc. 
+         rewrite IHe2 with
+             (expis := (IAccStart2 :: repeat_app (IAccStep :: l) d ++ [IAccEnd]) ++ l1).
+         cbn. induction d.
+         +  
+       
+         
+         
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction)
                                  (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap) (f: Env -> ExtMap -> option Val),
     expis = l0 ++ l1 -> CompileE e = Some l0 -> (fun env1 ext2 => Esem e env1 (ExtMap_to_ExtEnv ext2)) = f -> 
     StackEInterp (l0 ++ l1) stack env extM false =  StackEInterp l1 (f::stack) env extM false.
 Proof. intro. induction e using Exp_ind'; intros.
-       - destruct op; inversion H1; try destruct args; try discriminate; try destruct args; try discriminate; try destruct args; try discriminate.w
+       - destruct op; inversion H1; try destruct args; try discriminate; try destruct args; try discriminate; try destruct args; try discriminate.
 
        - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
          unfold find_default. rewrite H1. reflexivity.
