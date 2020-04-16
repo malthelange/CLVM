@@ -40,30 +40,30 @@ Inductive Contr : Type :=
 | If : Exp -> nat -> Contr -> Contr -> Contr.
 
 Definition Exp_ind'   : forall P : Exp -> Prop,
-       (forall (op : Op) (args : list Exp), all P args -> P (OpE op args)) ->
-       (forall (l : ObsLabel) (i : Z), P (Obs l i)) ->
-       (forall v : Var, P (VarE v)) ->
-       (forall f2 : Exp,
+    (forall (op : Op) (args : list Exp), all P args -> P (OpE op args)) ->
+    (forall (l : ObsLabel) (i : Z), P (Obs l i)) ->
+    (forall v : Var, P (VarE v)) ->
+    (forall f2 : Exp,
         P f2 -> forall (d : nat) (e : Exp), P e -> P (Acc f2 d e)) ->
-       forall e : Exp, P e := 
-fun (P : Exp -> Prop)
-  (f : forall (op : Op) (args : list Exp), all P args -> P (OpE op args))
-  (f0 : forall (l : ObsLabel) (i : Z), P (Obs l i))
-  (f1 : forall v : Var, P (VarE v))
-  (f2 : forall f2 : Exp,
+    forall e : Exp, P e := 
+  fun (P : Exp -> Prop)
+    (f : forall (op : Op) (args : list Exp), all P args -> P (OpE op args))
+    (f0 : forall (l : ObsLabel) (i : Z), P (Obs l i))
+    (f1 : forall v : Var, P (VarE v))
+    (f2 : forall f2 : Exp,
         P f2 -> forall (d : nat) (e : Exp), P e -> P (Acc f2 d e)) =>
-fix F (e : Exp) : P e :=
-  match e as e0 return (P e0) with
-  | OpE op args => let fix step es : all P es := 
-                       match es with
-                           | nil => forall_nil P
-                           | e' :: es' => forall_cons P (F e') (step es')
-                       end
-                   in  f op args (step args)
-  | Obs l i => f0 l i
-  | VarE v => f1 v
-  | Acc f3 d e0 => f2 f3 (F f3) d e0 (F e0)
-  end.
+    fix F (e : Exp) : P e :=
+    match e as e0 return (P e0) with
+    | OpE op args => let fix step es : all P es := 
+                        match es with
+                        | nil => forall_nil P
+                        | e' :: es' => forall_cons P (F e') (step es')
+                        end
+                    in  f op args (step args)
+    | Obs l i => f0 l i
+    | VarE v => f1 v
+    | Acc f3 d e0 => f2 f3 (F f3) d e0 (F e0)
+    end.
 
 Reserved Notation "'E[|' e '|]'" (at level 9).
 
@@ -83,9 +83,9 @@ Definition OpSem (op : Op) (vs : list Val) : option Val :=
   | BLit b => match vs with ([]) => Some (BVal b) | _ => None end
   | ZLit r => match vs with ([]) => Some (ZVal r) | _ => None end
   | Cond => match vs with
-            | ([BVal b; ZVal x; ZVal y ]) => Some (ZVal (if b then x else y))
-            | ([BVal b; BVal x; BVal y ]) => Some (BVal (if b then x else y))
-            | _ => None end
+           | ([BVal b; ZVal x; ZVal y ]) => Some (ZVal (if b then x else y))
+           | ([BVal b; BVal x; BVal y ]) => Some (BVal (if b then x else y))
+           | _ => None end
   | Neg => match vs with ([ZVal x]) => Some (ZVal (0 - x) %Z) | _ => None end
   | Not => match vs with ([BVal x]) => Some (BVal (negb x)) | _ => None end
   end.
@@ -107,7 +107,7 @@ Fixpoint Esem (e : Exp) (env : Env) (ext : ExtEnv) : option Val :=
   | Obs l i => Some (ext l i)
   | VarE v => lookupEnv v env
   | Acc f l z => let ext' := adv_ext (- Z.of_nat l) ext
-                 in Acc_sem (Fsem E[|f|] env ext') l (E[|z|] env ext')
+                in Acc_sem (Fsem E[|f|] env ext') l (E[|z|] env ext')
   end
 where "'E[|' e '|]'" := (Esem e ).
 
@@ -123,9 +123,9 @@ Fixpoint within_sem (c1 c2 : Env -> ExtEnv  -> option Trace)
   := match E[|e|] env rc with
      | Some (BVal true) => c1 env rc 
      | Some (BVal false) => match i with
-                            | O => c2 env rc
-                            | S j => liftM (delay_trace 1) (within_sem c1 c2 e j env (adv_ext 1 rc))
-                            end
+                           | O => c2 env rc
+                           | S j => liftM (delay_trace 1) (within_sem c1 c2 e j env (adv_ext 1 rc))
+                           end
      | _ => None
      end.
 
@@ -152,26 +152,37 @@ Inductive instruction :=
 | IPushB : bool -> instruction
 | IObs : ObsLabel -> Z -> instruction
 | IOp : Op -> instruction
-| IAcc : nat -> instruction
+| IAccStart1 : Z -> instruction
+| IAccStart2 : instruction
+| IAccStep : instruction
+| IAccEnd : instruction
 | IVar : nat -> instruction.
 
 Definition app3 {A} (a b c : list A) := a ++ b ++ c.
 Definition LApp3 {A} := liftM3 (@app3 A).
 
+Fixpoint repeat_app {A} (x : list A) (n: nat ) :=
+    match n with
+      | O => []
+      | S k => x ++ (repeat_app x k)
+    end.
+
 (** Compilation of CL expressions to CLVM expressions *)
 Fixpoint CompileE (e : Exp) : option (list instruction) :=
   match e with
   | OpE op args => match op with
-                   | BLit b => Some [IPushB b]
-                   | ZLit z => Some [IPushZ z]
-                   | Neg => match args with [exp1] => liftM2 List.app (CompileE exp1) (Some [IOp Neg]) | _ => None end
-                   | Not => match args with [exp1] => liftM2 List.app (CompileE exp1) (Some [IOp Not]) | _ => None end
-                   | Cond => match args with [exp1; exp2; exp3] => liftM2 List.app (LApp3 (CompileE exp3) (CompileE exp2) (CompileE exp1)) (Some [IOp Cond]) | _ => None end
-                   | op => match args with | [exp1; exp2] => LApp3 (CompileE exp2) (CompileE exp1) (Some [IOp op]) | _ => None end
-                   end
+                  | BLit b => Some [IPushB b]
+                  | ZLit z => Some [IPushZ z]
+                  | Neg => match args with [exp1] => liftM2 List.app (CompileE exp1) (Some [IOp Neg]) | _ => None end
+                  | Not => match args with [exp1] => liftM2 List.app (CompileE exp1) (Some [IOp Not]) | _ => None end
+                  | Cond => match args with [exp1; exp2; exp3] => liftM2 List.app (LApp3 (CompileE exp3) (CompileE exp2) (CompileE exp1)) (Some [IOp Cond]) | _ => None end
+                  | op => match args with | [exp1; exp2] => LApp3 (CompileE exp2) (CompileE exp1) (Some [IOp op]) | _ => None end
+                  end
   | Obs l i => Some [IObs l i]
   | VarE v => Some [IVar (translateVarToNat v)]
-  | Acc e1 d e2 => LApp3 (CompileE e2) (CompileE e1) (Some [IAcc d])
+  | Acc e1 d e2 => do s1 <- (CompileE e1);
+                  do s2 <- (CompileE e2);
+                  Some ([IAccStart1 (Z.of_nat d)] ++ s2 ++ [IAccStart2] ++ (repeat_app (IAccStep::s1) d) ++ [IAccEnd])
   end.
 
 (** Definition of contract instructions in CLVM *)
@@ -181,8 +192,10 @@ Inductive CInstruction :=
 | CIScale : (list instruction) -> CInstruction
 | CIBoth : CInstruction
 | CITranslate : nat -> CInstruction
+| CITranslateEnd : nat ->  CInstruction
 | CILet : list instruction -> CInstruction
-| CIIf : list instruction -> nat -> CInstruction.
+| CIIf : list instruction -> nat -> CInstruction
+| CIIfEnd : CInstruction.
 
 (** Compilation of CL contracts to CLVM contracts *)
 Fixpoint CompileC (c : Contr) : option (list CInstruction) :=
@@ -191,35 +204,41 @@ Fixpoint CompileC (c : Contr) : option (list CInstruction) :=
   | Transfer p1 p2 a => Some [CITransfer p1 p2 a]
   | Scale e c => do es <- CompileE e; liftM2 List.app (CompileC c) (Some [CIScale (es)])
   | Both c1 c2 => LApp3 (CompileC c2) (CompileC c1) (Some [CIBoth])
-  | Translate n c1 => liftM2 List.app (CompileC c1) (Some [CITranslate n])
-  | If e n c1 c2 => do es <- CompileE e; LApp3 (CompileC c2) (CompileC c1) (Some [CIIf es n])
-  | Let e c => do es <- CompileE e; liftM2 List.app (CompileC c) (Some [CILet es] )
+  | Translate n c1 => do s <- (CompileC c1) ;                                    
+                     (Some ([CITranslate n] ++ s ++ [CITranslateEnd n]))
+  | If e n c1 c2 => do es <- CompileE e;
+                   do s1 <- CompileC c1;
+                   do s2 <- CompileC c2;
+                   Some ([CIIf es n] ++ s2 ++ s1 ++ [CIIfEnd])
+  | Let e c => do es <- CompileE e;
+              do s <- CompileC c;
+              Some ([CILet es] ++ s)
   end.
 
 Definition pop (l : list (Env -> ExtMap -> option Val)) (env : Env) (ext : ExtMap) :=
   match l with
   | s1::tl => match (s1 env ext) with
-              | Some v1 => Some (v1)
-              | _   => None
-              end
+            | Some v1 => Some (v1)
+            | _   => None
+            end
   | _  => None
   end.
 
 Definition pop2 (l : list (Env -> ExtMap -> option Val)) (env : Env) (ext : ExtMap) :=
   match l with
   | s1::s2::tl => match (s1 env ext) , (s2 env ext) with
-                  | Some v1, Some v2 => Some (v1, v2)
-                  | _ , _  => None
-                  end
+               | Some v1, Some v2 => Some (v1, v2)
+               | _ , _  => None
+               end
   | _  => None
   end.
 
 Definition pop3 (l : list (Env -> ExtMap -> option Val)) (env : Env) (ext : ExtMap) :=
   match l with
   | s1::s2::s3::tl => match (s1 env ext) , (s2 env ext) , (s3 env ext) with
-                      | Some v1, Some v2, Some v3 => Some (v1, v2, v3)
-                      | _ , _ , _  => None
-                      end
+                  | Some v1, Some v2, Some v3 => Some (v1, v2, v3)
+                  | _ , _ , _  => None
+                  end
   | _  => None
   end.
 
@@ -234,154 +253,219 @@ Definition find_default (k : (ObsLabel * Z)) (ext : ExtMap) (default : Val) : Va
 (** Definition of expression semantics in CLVM, parameters are in reverse polish notation.
     When we don't evaluate partially we can expect the environment to be complete and return
     some default value, this eases proofs by a lot.
-*)
-Fixpoint StackEInterp (instrs : list instruction) (stack : list (Env -> ExtMap -> option Val)) (env: Env) (ext: ExtMap) (partial : bool) : option Val :=
+ *)
+Fixpoint StackEInterp (instrs : list instruction) (stack : list (option Val)) (env: Env) (ext: ExtMap) (partial : bool) : option Val :=
   match instrs with
-  | [] => match stack with
-          | [val] => val env ext
-          | _ => None
-          end
-  | hd::tl => match hd with
-              | IPushZ z => StackEInterp tl ((fun e et => Some (ZVal z))::stack) env ext partial
-              | IPushB b => StackEInterp tl ((fun e et => Some (BVal b))::stack) env ext partial
-              | IObs l i => if partial then
-                             StackEInterp tl ((fun e et => FMap.find (l,i) et )::stack) env ext partial
-                           else
-                             StackEInterp tl ((fun e et => Some (find_default (l,i) et (ZVal 0)))::stack) env ext partial
-              | IOp op => match op with
-                          | Add => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
-                                                            | Some ((ZVal z1),(ZVal z2)) => Some (ZVal (z1 + z2))
-                                                            | _ => None end)::tl2) env ext partial
-                                               | _ => None end
-                          | Sub => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
-                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (ZVal (z1 - z2))
-                                                                                           | _ => None end )::tl2) env ext partial
-                                              | _ => None end
-                          | Mult => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
-                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (ZVal (z1 * z2))
-                                                                                           | _ => None end )::tl2) env ext partial
-                                              | _ => None end
-                          | Div => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
-                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (ZVal (z1 / z2))
-                                                                                           | _ => None end )::tl2) env ext partial
-                                              | _ => None end
-                          | And => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
-                                                                                           | Some ((BVal b1),(BVal b2)) => Some (BVal (b1 && b2))
-                                                                                           | _ => None end)::tl2) env ext partial
-                                              | _ => None end
-                          | Or => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
-                                                                                           | Some ((BVal b1),(BVal b2)) => Some (BVal (b1 || b2))
-                                                                                           | _ => None end)::tl2) env ext partial
-                                              | _ => None end
-                          | Less => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
-                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (BVal (z1 <? z2))
-                                                                                           | _ => None end )::tl2) env ext partial
-                                              | _ => None end
-                          | Leq => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
-                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (BVal (z1 <=? z2))
-                                                                                           | _ => None end )::tl2) env ext partial
-                                              | _ => None end
-                          | Equal => match stack with hd::hd2::tl2 => StackEInterp tl ((fun e et => match (pop2 stack e et) with
-                                                                                           | Some ((ZVal z1),(ZVal z2)) => Some (BVal (z1 =? z2))
-                                                                                           | _ => None end )::tl2) env ext partial
-                                              | _ => None end
-                          | Cond => match stack with hd::hd2::hd3::tl2 => StackEInterp tl ((fun e et => match (pop3 stack e et) with
-                                                                                               | Some ((BVal b),(ZVal x),(ZVal y)) => Some (ZVal (if b then x else y))
-                                                                                               | Some ((BVal b),(BVal x),(BVal y)) => Some (BVal (if b then x else y))
-                                                                                               | _ => None end )::tl2) env ext partial
-                                               | _ => None end
-                          | Neg => match stack with hd::tl2 => StackEInterp tl ((fun e et => match (pop stack e et) with
-                                                                                      | Some (ZVal x) => Some (ZVal (0 - x))
-                                                                                      | _ => None end)::tl2) env ext partial
-                                              | _ => None end
-                          | Not => match stack with hd::tl2 => StackEInterp tl ((fun e et => match (pop stack e et) with
-                                                                                      | Some (BVal b) => Some (BVal (negb b))
-                                                                                      | _ => None end)::tl2) env ext partial
-                                              | _ => None end
-                          | _ => None
-                          end
-              (** Might need to change this *)
-              | IVar n => StackEInterp tl ((fun e et => (StackLookupEnv n e))::stack) env ext partial
-              | IAcc n => match stack with
-                          | s1::s2::tl2 => StackEInterp tl ((fun e et => let et' := adv_map (- Z.of_nat n) et
-                                                                         in Acc_sem (Fsem_stack s1 e et') n (s2 e et')) :: tl2) env ext partial
-                          | _ => None
-                          end
-              end
+  | [] => match stack with [val] => val | _ => None end
+  | hd::tl =>
+    match hd with
+    | IPushZ z => StackEInterp tl ((Some (ZVal z))::stack) env ext partial
+    | IPushB b => StackEInterp tl ((Some (BVal b))::stack) env ext partial
+    | IObs l i => if partial then
+                   StackEInterp tl ((FMap.find (l,i) ext)::stack) env ext partial
+                 else
+                   StackEInterp tl ((Some (find_default (l,i) ext (ZVal 0)))::stack) env ext partial
+    | IOp op => match op with
+               | Add => match stack with
+                       | (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                        StackEInterp tl (Some (ZVal (z1 + z2))::tl2) env ext partial
+                       | _ => None
+                       end
+               | Sub => match stack with
+                       | (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                         StackEInterp tl (Some (ZVal (z1 - z2))::tl2) env ext partial
+                       | _ => None
+                       end
+               | Mult => match stack with
+                        | (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                          StackEInterp tl (Some (ZVal (z1 * z2))::tl2) env ext partial
+                        | _ => None
+                        end
+               | Div => match stack with
+                       | (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                        StackEInterp tl (Some (ZVal (z1 / z2))::tl2) env ext partial
+                       | _ => None
+                       end
+               | And => match stack with (Some (BVal b1))::(Some (BVal b2))::tl2 =>
+                                        StackEInterp tl (Some (BVal (b1 && b2))::tl2) env ext partial | _ => None
+                       end
+               | Or => match stack with
+                      |(Some (BVal b1))::(Some (BVal b2))::tl2 =>
+                       StackEInterp tl (Some (BVal (b1 || b2))::tl2) env ext partial
+                      | _ => None
+                      end
+               | Less => match stack with
+                        |(Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                         StackEInterp tl (Some (BVal (z1 <? z2))::tl2) env ext partial
+                        | _ => None
+                        end
+               | Leq => match stack with
+                       |(Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                        StackEInterp tl (Some (BVal (z1 <=? z2))::tl2) env ext partial
+                       | _ => None
+                        end
+               | Equal => match stack with
+                           | (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                             StackEInterp tl (Some (BVal (z1 =? z2))::tl2) env ext partial
+                           | _ => None
+                         end
+               | Cond => match stack with
+                        | (Some (BVal b))::(Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
+                          StackEInterp tl ((Some (ZVal (if b then z1 else z2)))::tl2) env ext partial
+                        | (Some (BVal b))::(Some (BVal b1))::(Some (BVal b2))::tl2 =>
+                          StackEInterp tl ((Some (BVal (if b then b1 else b2)))::tl2) env ext partial
+                        | _ => None
+                        end
+               | Not => match stack with
+                       | ((Some (BVal b))::tl2) => StackEInterp tl ((Some (BVal (negb b)))::tl2) env ext partial
+                       | _ => None end
+               | Neg => match stack with
+                       | ((Some (ZVal z))::tl2) => StackEInterp tl ((Some (ZVal (0 -z)))::tl2) env ext partial
+                       | _ => None end
+               | _ => None 
+               end
+    | IVar n => StackEInterp tl ((StackLookupEnv n env)::stack) env ext partial
+    | IAccStart1 z => StackEInterp tl stack env (adv_map (0-z) ext) partial
+    | IAccStart2 => match stack with (Some v)::tl2 => StackEInterp tl tl2 (v::env) ext partial | _ => None end
+    | IAccStep => match stack with (Some v)::tl2 => let env' := List.tl env in
+                                                 StackEInterp tl tl2 (v::env') (adv_map 1 ext) partial | _ => None end
+    | IAccEnd => StackEInterp tl stack (List.tl env) ext partial
+    end
   end.
 
-
-Fixpoint stack_within_sem (c1 c2 : Env -> ExtMap  -> option TraceM) 
-         (expis : list instruction) (i : nat)  (env : Env) (rc : ExtMap) : option TraceM
-  := match StackEInterp expis [] env rc false with
-     | Some (BVal true) => c1 env rc 
+Fixpoint stack_within_sem  (expis : list instruction) (i : nat)  (env : Env) (rc : ExtMap) (partial : bool) : option (bool * nat)
+  := match StackEInterp expis [] env rc partial with
+     | Some (BVal true) => Some (true, i)
      | Some (BVal false) => match i with
-                            | O => c2 env rc
-                            | S j => liftM (delay_traceM 1) (stack_within_sem c1 c2 expis j env (adv_map 1 rc))
+                            | O => Some (false, i)
+                            | S j => stack_within_sem expis j env (adv_map 1 rc) partial
                             end
      | _ => None
      end.
 
 (** Definition of semantics for CLVM, parameters are in reverse polish notation *)
-Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (Env -> ExtMap -> option TraceM)) (env : Env) (ext: ExtMap) : option TraceM :=
+Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)) (env : Env) (exts: list ExtMap) (w_stack : list (bool * nat)) : option TraceM :=
   match instrs with
-  | [] => match stack with [res] => res env ext | _ => None end
+  | [] => match stack with [res] => res | _ => None end
   | hd::tl =>
     match hd with
-    | CIZero => StackCInterp tl ((fun e et => Some empty_traceM)::stack) env ext
-    | CITransfer p1 p2 c => StackCInterp tl ((fun e et => Some(singleton_traceM (singleton_transM p1 p2 c 1)))::stack) env ext
-    | CIScale expis => match stack with hd2::tl2 => StackCInterp tl ((fun e et => do z <- liftM toZ (StackEInterp expis [] e et false); liftM2 scale_traceM z (hd2 e et))::tl2) env ext
+    | CIZero => StackCInterp tl ((Some empty_traceM)::stack) env exts w_stack
+    | CITransfer p1 p2 c => StackCInterp tl ((Some (singleton_traceM (singleton_transM p1 p2 c 1)))::stack) env exts w_stack
+    | CIScale expis => match stack with hd2::tl2 => do et <- hd_error exts;
+                                                 let trace :=
+                                                     (do z <- liftM toZ (StackEInterp expis [] env et false); liftM2 scale_traceM z hd2)
+                                                 in StackCInterp tl (trace::tl2) env exts w_stack
                                    | [] => None
                        end
-    | CIBoth => match stack with t1::t2::tl2 => StackCInterp tl ((fun e et => liftM2 add_traceM (t1 e et) (t2 e et))::tl2) env ext | _ => None end 
-    | CITranslate n => match stack with t1::tl2 => StackCInterp tl ((fun e et => liftM (delay_traceM n) (t1 e (adv_map (Z.of_nat n) et)))::tl2) env ext | _ => None end
-    | CIIf expis n => match stack with t1::t2::tl2 => StackCInterp tl ((fun e et => stack_within_sem t1 t2 expis n e et)::tl2) env ext | _ => None end
-    | CILet expis => match stack with t1::tl2
-                                      => StackCInterp tl
-                                                      ((fun e et => do v <- (StackEInterp expis [] e et false);(t1 (v::e) et))::tl2)
-                                                      env ext
-                                 | _ => None end
+    | CIBoth => match stack with t1::t2::tl2 =>
+                                let trace := (liftM2 add_traceM t1 t2) in
+                                StackCInterp tl (trace::tl2) env exts w_stack
+                           | _ => None end
+    | CITranslate n  => do et <- hd_error exts;
+                       let et' := (adv_map (Z.of_nat n) et) in
+                       StackCInterp tl stack env (et'::exts) w_stack
+    | CITranslateEnd n => match stack  with
+                         |t::tl2 => match exts with
+                                  | et::exts' =>
+                                    do t' <- t;
+                                    let trace := (delay_traceM n t') in
+                                    StackCInterp tl ((Some trace)::tl2) env exts' w_stack
+                                  | p_ => None
+                                  end
+                         | _ => None
+                         end
+    | CILet expis => do et <- hd_error exts;
+                     do v <- (StackEInterp expis [] env et false);
+                       StackCInterp tl stack (v::env) exts w_stack
+    | CIIf expis n => match exts with | et::exts' =>
+                                       do w <- stack_within_sem expis n env et false;
+                                       let (branch, d_left) := w in
+                                       let d_passed := (n - d_left)%nat in
+                                       let et' := adv_map (Z.of_nat d_passed) et in
+                                       StackCInterp tl stack env (et'::exts') ((branch, d_passed)::w_stack)
+                                | _ => None
+                     end
+    | CIIfEnd => match stack with
+                | t1::t2::tl2 => match w_stack with
+                              | w::w_stack' => 
+                                let (branch, d_passed) := w in
+                                do t1' <- t1;
+                                do t2' <- t2;
+                                 let trace := delay_traceM d_passed (if branch then t1' else t2') in
+                                 StackCInterp tl ((Some trace)::tl2) env (List.tl exts) w_stack'
+                              | _ => None
+                              end
+                | _ => None
+                end
+                                 
     end
   end.
 
 (** Partial evaluation CLVM, we assume expressions only evaluate to None when some required observable is not present. 
     Meaning we assume all expressions are well-formed. Whenever an expression returns None we just evaluate to a Empty trace.*)
 
-Fixpoint stack_within_partial (c1 c2 : Env -> ExtMap  -> option TraceM) 
-         (expis : list instruction) (i : nat)  (env : Env) (rc : ExtMap)  : option TraceM
-  := match StackEInterp expis [] env rc true with
-     | Some (BVal true) => c1 env rc 
-     | Some (BVal false) => match i with
-                            | O => c2 env rc
-                            | S j => liftM (delay_traceM 1) (stack_within_sem c1 c2 expis j env (adv_map 1 rc))
-                            end
-     | _ => Some (empty_traceM)
-     end.
-
-Fixpoint StackCPartial (instrs : list CInstruction) (stack : list (Env -> ExtMap -> option TraceM)) (env : Env) (ext: ExtMap) : option TraceM :=
+Fixpoint StackCPartial (instrs : list CInstruction) (stack : list (option TraceM)) (env : Env) (exts: list ExtMap) (w_stack : list (option (bool * nat))) : option TraceM :=
   match instrs with
-  | [] => match stack with [res] => res env ext | _ => None end
+  | [] => match stack with
+         |[res] => res
+         | _ => None
+         end
   | hd::tl => 
     match hd with
-    | CIZero => StackCPartial tl ((fun e et => Some empty_traceM)::stack) env ext
-    | CITransfer p1 p2 c => StackCPartial tl ((fun e et => Some(singleton_traceM (singleton_transM p1 p2 c 1)))::stack) env ext
-    | CIScale expis => match stack with hd2::tl2 => StackCPartial tl ((fun e et => match liftM toZ (StackEInterp expis [] e et true) with
-                                                                            | Some z => liftM2 scale_traceM z (hd2 e et)
-                                                                            | None => (Some empty_traceM)
-                                                                            end )::tl2) env ext
-                                   | [] => None
-                       end
-    | CIBoth => match stack with t1::t2::tl2 => StackCPartial tl ((fun e et => liftM2 add_traceM (t1 e et) (t2 e et))::tl2) env ext | _ => None end
-    | CITranslate n => match stack with t1::tl2 => StackCPartial tl ((fun e et => liftM (delay_traceM n) (t1 e (adv_map (Z.of_nat n) et)))::tl2) env ext | _ => None end
-    | CIIf expis n => match stack with t1::t2::tl2 => StackCPartial tl ((fun e et => stack_within_partial t1 t2 expis n e et)::tl2) env ext | _ => None end
-    | CILet expis => match stack with t1::tl2
-                                      => StackCPartial tl
-                                                      ((fun e et => match (StackEInterp expis [] e et true) with
-                                                                 | Some v => (t1 (v::e) et)
-                                                                 | None => Some (empty_traceM)
-                                                                 end)::tl2)
-                                                      env ext
-                                 | _ => None end
+    | CIZero => StackCPartial tl ((Some empty_traceM)::stack) env exts w_stack
+    | CITransfer p1 p2 c => let trace := (singleton_traceM (singleton_transM p1 p2 c 1)) in
+                           StackCPartial tl ((Some trace)::stack) env exts w_stack
+    | CIScale expis => match stack with
+                      | hd2::tl2 => do et <- hd_error exts;
+                                  match liftM toZ (StackEInterp expis [] env et true) with
+                                  | Some z => liftM2 scale_traceM z hd2
+                                  | None => (Some empty_traceM)
+                                  end
+                      | _ => None 
+                      end
+    | CIBoth => match stack with t1::t2::tl2 =>
+                                let trace := (liftM2 add_traceM t1 t2) in
+                                StackCPartial tl (trace::tl2) env exts w_stack
+                           | _ => None end
+    | CITranslate n  => do et <- hd_error exts;
+                       let et' := (adv_map (Z.of_nat n) et) in
+                       StackCPartial tl stack env (et'::exts) w_stack
+    | CITranslateEnd n => match stack  with
+                         |t::tl2 => match exts with
+                                  | et::exts' =>
+                                    do t' <- t;
+                                    let trace := (delay_traceM n t') in
+                                    StackCPartial tl ((Some trace)::tl2) env exts' w_stack
+                                  | p_ => None
+                                  end
+                         | _ => None
+                         end
+    | CIIf expis n => match exts with | et::exts' =>
+                                       match  stack_within_sem expis n env et false with
+                                       | Some (branch, d_left) => 
+                                         let d_passed := (n - d_left)%nat in
+                                         let et' := adv_map (Z.of_nat d_passed) et in
+                                         StackCPartial tl stack env (et'::exts') ((Some (branch, d_passed))::w_stack)
+                                       | _ => StackCPartial tl stack env exts ((None)::w_stack)
+                                       end
+                                | _ => None
+                     end
+    | CIIfEnd => match stack with
+                | t1::t2::tl2 => match w_stack with
+                              | (Some w)::w_stack' => 
+                                let (branch, d_passed) := w in
+                                do t1' <- t1;
+                                do t2' <- t2;
+                                let trace := delay_traceM d_passed (if branch then t1' else t2') in
+                                StackCPartial tl ((Some trace)::tl2) env (List.tl exts) w_stack'
+                              | None::w_stack' => StackCPartial tl ((Some empty_traceM)::tl2) env (List.tl exts) w_stack'
+                              | _ => None
+                              end
+                | _ => None
+                end
+    | CILet expis => do et <- hd_error exts;
+                    do v <- (StackEInterp expis [] env et false);
+                    StackCPartial tl stack (v::env) exts w_stack
     end
   end.
 
@@ -406,7 +490,7 @@ Qed.
 (** This is a proof for one case of Op-expressions. In principle i could just copy this 16 times, with a small correction to the asssertion,
     and a the number of destructs for args. But that is way way too messy. So i need some way to refactor this into cleaner steps.
     It might be worth it to look into the CL repository for already existing tactics.
- destruct op.
+ destruct op. 
          + inversion H1. destruct args. discriminate. destruct args. discriminate. destruct args.
            unfold LApp3 in H4. unfold liftM3 in H4. destruct (CompileE e0) eqn:Eq1. destruct (CompileE e) eqn:Eq2.
            cbn in H4. unfold app3 in H4.  inversion H4. apply all_apply'' in H. destruct H.
@@ -421,23 +505,22 @@ Qed.
         match E[| e|] e1 (ExtMap_to_ExtEnv et) with
         | Some v1 =>
             match E[| e0|] e1 (ExtMap_to_ExtEnv et) with
-            | Some v2 => Some (v1, v2, stack)
+            | Some v2 => Some (v1, v2)
             | None => None
             end
         | None => None
         end
       with
-      | Some (ZVal z1, BVal _, _) => None
-      | Some (ZVal z1, ZVal z2, _) => Some (ZVal (z1 + z2))
+      | Some (ZVal z1, BVal _) => None
+      | Some (ZVal z1, ZVal z2) => Some (ZVal (z1 + z2))
       | _ => None
       end) = (fun (env1 : Env) (ext2 : ExtMap) =>
       do x <-
       liftM2 (fun (x' : Val) (xs' : list Val) => x' :: xs')
         (E[| e|] env1 (ExtMap_to_ExtEnv ext2))
         (liftM2 (fun (x' : Val) (xs' : list Val) => x' :: xs')
-           (E[| e0|] env1 (ExtMap_to_ExtEnv ext2)) 
-           (Some [])); OpSem Add x)).
-            apply functional_extensionality. intro. apply functional_extensionality. intro.
+           (E[| e0|] env1 (ExtMap_to_ExtEnv ext2)) (Some [])); OpSem Add x)).
+            repeat (apply functional_extensionality ; intro). 
              destruct (E[| e|] x (ExtMap_to_ExtEnv x0)) eqn:Eq5.
              destruct (E[| e0|] x (ExtMap_to_ExtEnv x0)) eqn:Eq6; reflexivity.
              reflexivity.
@@ -446,25 +529,32 @@ Qed.
                             apply Eq1. reflexivity. discriminate. discriminate. discriminate.
 *)
 
-Lemma AdvanceMapSound : forall (ext: ExtMap) (d i: Z) (l : ObsLabel),
-FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
-Proof. Admitted.
   
 Lemma AdvanceMap1 : forall (ext: ExtMap) (d : Z),
     adv_ext d (ExtMap_to_ExtEnv ext)  = ExtMap_to_ExtEnv (adv_map d ext).
 Proof.
   intros. unfold ExtMap_to_ExtEnv. unfold adv_ext.
   repeat (apply functional_extensionality; intros).
-  rewrite AdvanceMapSound. reflexivity.
+  rewrite AdvanceMapSound. reflexivity. apply x0.
 Qed.
 
+Lemma TranlateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
+                                 (ext : ExtMap)  (stack : list (option Val)) (v: option Val),
+    expis = l0 ++ l1 ->
+    CompileE e = Some l0 ->
+    Esem e env (ExtMap_to_ExtEnv ext) = v ->
+    StackEInterp (l0 ++ l1) stack env ext false = StackEInterp l1 (v::stack) env ext false.
+Proof. intro. induction e using Exp_ind'; intros.
+       - destruct op; inversion H1; try destruct args; try discriminate; try destruct args; try discriminate; try destruct args; try discriminate.
+         +
 
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction)
                                  (stack : list (Env -> ExtMap -> option Val)) (env : Env) (ext: ExtMap) (f: Env -> ExtMap -> option Val),
     expis = l0 ++ l1 -> CompileE e = Some l0 -> (fun env1 ext2 => Esem e env1 (ExtMap_to_ExtEnv ext2)) = f -> 
     StackEInterp (l0 ++ l1) stack env extM false =  StackEInterp l1 (f::stack) env extM false.
 Proof. intro. induction e using Exp_ind'; intros.
-       - destruct op. 
+       - destruct op; inversion H1; try destruct args; try discriminate; try destruct args; try discriminate; try destruct args; try discriminate.w
+
        - inversion H0. cbn. cbn in H1. unfold ExtMap_to_ExtEnv in H1.
          unfold find_default. rewrite H1. reflexivity.
        - inversion H0. cbn. cbn in H1. rewrite <- H1.
@@ -520,6 +610,7 @@ Qed.
 Definition vmC (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
   StackCInterp instrs [] env ext.
 
+
 Definition vmPartial (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
   StackCPartial instrs [] env ext.
 
@@ -553,3 +644,24 @@ Definition traceMtoTrace (t : TraceM) (default: Z) : Trace :=
                 | Some z => z
                 | None => default
                 end.
+
+Definition option_traceM_to_Trace (t : option TraceM) (default: Z) : option Trace :=
+  liftM2 traceMtoTrace t (Some 0).
+
+
+(*
+Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (instrs l0 l1 : list CInstruction)
+                                 (stack : list (Env -> ExtMap -> option TraceM) ) (t: Env -> ExtMap -> option TraceM),
+    instrs = l0 ++ l1 -> CompileC c = Some l0 -> (forall env1 ext2, Csem c env1 (ExtMap_to_ExtEnv ext2) =
+                                                option_traceM_to_Trace (t env1 ext2) 0) -> 
+    StackCInterp (l0 ++ l1) stack env extM = StackCInterp l1 (t::stack) env extM .
+Proof.
+  intro. induction c; intros.
+  - inversion H0. cbn in *. assert (H5: t = (fun (_ : Env) (_ : ExtMap) => Some empty_traceM)).
+  
+      
+Theorem TranslateContractSound : forall (c : Contr) (e : Env) (ext : ExtMap) (instrs : list CInstruction) ,
+    CompileC c = Some instrs -> Csem c e (ExtMap_to_ExtEnv ext) = do traceM <- (vmC instrs e ext); Some (traceMtoTrace traceM 0).
+Proof.
+  intros. unfold vmC. rewrite (app_nil_end instrs). 
+*)
