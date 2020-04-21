@@ -13,6 +13,7 @@ Notation FMap := gmap.gmap.
 
 Module FMap.
   Generalizable All Variables.
+
   Notation empty := stdpp.base.empty.
   Notation add := stdpp.base.insert.
   Notation find := stdpp.base.lookup.

@@ -5,28 +5,28 @@ to a stack based language called CLVM. The goal of this project is to verify the
 
 ## How to build - From the ConCert documentation
 
-Our development works with Coq 8.9.1. and depends on MetaCoq 1.0~alpha+8.9 and
-the std++ library v.1.2.1. These dependencies can be installed through
-`opam`.
+Our development works with Coq 8.11. and depends on MetaCoq 1.0~alpha2+8.11,
+std++ and coq-bignums. These dependencies can be installed through `opam`.
 
 Install Coq (see https://coq.inria.fr/opam-using.html for detailed instructions on how to manage
 multiple Coq installations using opam).:
 
 ```bash
-opam install coq.8.9.1
+opam install coq.8.11
 ```
 
-Then MetaCoq:
+Then MetaCoq and bignums:
 
 ```bash
 opam repo add coq-released https://coq.inria.fr/opam/released
-opam install coq-metacoq.1.0~alpha+8.9
+opam install coq-metacoq.1.0~alpha+8.11
+opam install coq-bignums
 ```
 And std++:
 
 ```bash
 opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
-opam install coq-stdpp.1.2.1
+opam install coq-stdpp
 ```
 
 After completing the procedures above, run `make` to build the development, and
@@ -38,4 +38,10 @@ docs folder after `make html`.
 The [embedding](embedding/) folder contains the development of the embedding.
 The [execution](execution/) folder contains the formalization of the smart
 contract execution layer, which allows reasoning about interacting contracts.
+
 The [CL Interpreter](execution/CLInterp) folder contains the CL interpreter and theory.
+
+## Notes for developers
+
+The [execution](execution/) subproject can be built independently via running `make` in the `execution` folder. This also means that the `_CoqProject` file inside the `execution` folder musdt be manually kept in sync with the main `_CoqProject` in the root.
+>>>>>>> upstream/master
