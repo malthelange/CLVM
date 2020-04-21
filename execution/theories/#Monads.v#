@@ -1,5 +1,6 @@
 Require Import Basics.
 Require Import List.
+Require Import Blockchain.
 Import ListNotations.
 (* This file defines some helpful notations for the option monad. *)
 
