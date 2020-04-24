@@ -28,17 +28,7 @@ execution/theories/LocalBlockchain.v
 execution/theories/Monads.v
 execution/theories/Serializable.v
 
-
--R execution/CLInterp ConCert.CL
-execution/CLInterp/CLInterp.v
-execution/CLInterp/CLIPrelude.v
-execution/CLInterp/CLITest.v
-execution/CLInterp/CLITranslate.v
-
--R embedding/theories ConCert.Embedding
-
 -Q embedding/theories ConCert.Embedding
-
 embedding/theories/Ast.v
 embedding/theories/CustomTactics.v
 embedding/theories/EnvSubst.v
