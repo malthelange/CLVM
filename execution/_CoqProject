@@ -27,3 +27,6 @@ theories/Finite.v
 theories/LocalBlockchain.v
 theories/Monads.v
 theories/Serializable.v
+CLInterp/CLIPrelude.v
+CLInterp/CLIUtils.v
+CLInterp/CLITranslate.v

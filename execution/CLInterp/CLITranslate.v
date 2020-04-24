@@ -14,7 +14,7 @@ Require Export Utils.
 Require Import Serializable.
 From RecordUpdate Require Import RecordUpdate.
 Import RecordSetNotations.
-Require Import CLIPrelude. 
+Require Import CLIPrelude.
 Require Export CLIUtils.
 
 (** Definition of operations in CL and CLVM and expressions in CL *)
@@ -399,11 +399,13 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)
                      do v <- (StackEInterp expis [] env et false);
                        StackCInterp tl stack (v::env) exts w_stack
     | CIIf expis n => match exts with | et::exts' =>
-                                       do w <- stack_within_sem expis n env et false;
-                                       let (branch, d_left) := w in
-                                       let d_passed := (n - d_left)%nat in
-                                       let et' := adv_map (Z.of_nat d_passed) et in
-                                       StackCInterp tl stack env (et'::exts') ((branch, d_passed)::w_stack)
+                                       match stack_within_sem expis n env et false with
+                                       | Some (branch, d_left) => 
+                                         let d_passed := (n - d_left)%nat in
+                                         let et' := adv_map (Z.of_nat d_passed) et in
+                                         StackCInterp tl stack env (et'::exts') ((branch, d_passed)::w_stack)
+                                       | _ => None
+                                       end
                                 | _ => None
                      end
     | CIIfEnd => match stack with
