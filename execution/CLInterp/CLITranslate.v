@@ -578,27 +578,69 @@ Qed.
 *)
     
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
-                                 (ext : ExtMap)  (stack : list (option Val)),
+                                 (ext : ExtMap)  (stack : list (option Val)) (v : Val),
     expis = l0 ++ l1 ->
     CompileE e = Some l0 ->
+    Esem e env (ExtMap_to_ExtEnv ext) = Some v -> 
     StackEInterp (l0 ++ l1) stack env ext false =
-    StackEInterp l1 ((Esem e env (ExtMap_to_ExtEnv ext))::stack) env ext false.
+    StackEInterp l1 ((Some v)::stack) env ext false.
 Proof. intro. induction e using Exp_ind'; intros.
-       - destruct op; inversion H1; try destruct args; try destruct args; try destruct args;
-           try discriminate;
-           try (destruct (CompileE e) eqn:Eq1);
-           try (destruct (CompileE e0) eqn:Eq2); try discriminate; inversion H3; cbn in *;
+       - destruct op; inversion H1; try destruct args; try destruct args; try destruct args; try discriminate;
+           try (destruct (CompileE e) eqn:Eq1); try discriminate;
+           try (destruct (CompileE e0) eqn:Eq2); try discriminate; inversion H4; cbn in *;
+           clear H1 ;
              try (apply all_apply'' in H; destruct H);
-             try (apply all_apply'' in H2; destruct H2; clear H5);
+             try (apply all_apply'' in H1; destruct H1);
              try (repeat (rewrite <- app_assoc));
-             try (destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3);
-             try (destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4).
-         + rewrite H2 with
-               (expis := l ++ [IOp Add] ++ l1).
-           rewrite H with
-               (expis := [IOp Add] ++ l1). rewrite Eq3. rewrite Eq4. cbn.
-           destruct (v). 
-           
+             try (destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3); try discriminate;
+               try (destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4); try discriminate;
+                 try (destruct (E[| e1|] env (ExtMap_to_ExtEnv ext)) eqn:Eq5); try discriminate;
+             try unfold Monads.pure in H2.
+         + destruct v0; try discriminate;  destruct v1; try discriminate.
+           rewrite H1 with ( expis := l2 ++ l ++ [IOp Add] ++ l1) (v :=  ((ZVal z0))); try reflexivity.
+           rewrite H with (expis := (l ++ [IOp Add] ++ l1)) (v := (ZVal z)); try reflexivity.
+           cbn. rewrite <- H2. reflexivity.  apply Eq1. apply Eq3. apply Eq2. apply Eq4. 
+         + admit.
+         + admit.
+         + admit.
+         + admit.
+         + admit.
+         + admit.
+         + admit.
+         + admit.
+         + admit.
+         + admit.
+         + rewrite H2. reflexivity.
+         + destruct (sequence
+                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
+                      args)); discriminate.
+         + destruct (sequence
+                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
+                      args)); discriminate.
+         + destruct (sequence
+                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
+                      args)); discriminate.
+         + destruct (sequence
+                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
+                      args)); discriminate.
+         + rewrite H2. reflexivity.
+         + destruct (sequence
+                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
+                      args)); discriminate.
+         + destruct (sequence
+                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
+                      args)); discriminate.
+         + destruct (sequence
+                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
+                      args)); discriminate.
+         + destruct (sequence
+                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
+                      args)); discriminate.
+         + destruct (CompileE e1); try discriminate; destruct (sequence
+                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
+                    args)). destruct args; try discriminate.
+         + admit.
+         + admit.
        - inversion H0. cbn in *. unfold ExtMap_to_ExtEnv. unfold find_default. reflexivity.
        - inversion H0. cbn in *. rewrite <- lookupTranslateSound. reflexivity.
        - inversion H0.
