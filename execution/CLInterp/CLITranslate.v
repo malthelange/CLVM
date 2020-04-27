@@ -577,24 +577,33 @@ Lemma AccStepSound:
           E[| e2|] env (ExtMap_to_ExtEnv ext) = Some v ->
           StackEInterp (l0 ++ l1) stack env ext false =
           StackEInterp l1 (Some v :: stack) env ext false) ->
-      forall (env : Env) (l1 : list instruction) 
-        (ext : ExtMap) (stack : list (option Val)),
+      forall  (l1 : list instruction) 
+        (stack : list (option Val)),
         StackEInterp
           (l ++
              (IAccStart2
-                :: repeat_app (l2 ++ [IAccStep]) (d - 0) ++ l2 ++ [IAccEnd]) ++
+                :: repeat_app (l2 ++ [IAccStep]) d ++ l2 ++ [IAccEnd]) ++
              l1) stack env (adv_map (- Z.of_nat (S d)) ext) false =
         StackEInterp l1 (Some v :: stack) env ext false.
 Proof.
   intros d. induction d; intros.
   - cbn in *. destruct ( E[| e2|] env (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext))) eqn:Eq3; try discriminate.
     destruct (E[| e1|] (v0 :: env) (adv_ext (Z.of_nat 1) (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext)))) eqn:Eq4; try discriminate.
-    
-  - cbn in *.
-    destruct (Acc_sem (Fsem E[| e1|] env (adv_ext (- Z.of_nat (S d)) (ExtMap_to_ExtEnv ext))) d) eqn: Eq3; try discriminate;
-      destruct ((E[| e2|] env (adv_ext (- Z.of_nat (S d)) (ExtMap_to_ExtEnv ext)))) eqn:Eq4; try discriminate.
-    +
-    
+    rewrite H3 with (expis := (l ++ IAccStart2 :: (l2 ++ [IAccEnd]) ++ l1)) (v := v0) (ext:= adv_map (- Z.of_nat 1) ext); try reflexivity.
+    cbn in *. rewrite <- app_assoc.
+    rewrite H1 with (expis := (l2 ++ [IAccEnd] ++ l1)) (env := (v0 :: env)) (ext := (adv_map 1 (adv_map (- Z.of_nat 1) ext))) (v := v1);
+      try reflexivity.
+    cbn. rewrite H. unfold Z.of_nat. cbn. rewrite AdvanceMap3. assert (H5: (1 + - (1)) = 0). omega. rewrite H5.
+    rewrite AdvanceMap2. reflexivity. rewrite AdvanceMap1 in Eq4. rewrite AdvanceMap1 in Eq4.
+    unfold Z.of_nat in Eq4. cbn in Eq4. unfold Z.of_nat. cbn. apply Eq4. rewrite AdvanceMap1 in Eq3. apply Eq3.
+  - cbn in *. destruct ((E[| e2|] env (adv_ext (- Z.of_nat (S (S d))) (ExtMap_to_ExtEnv ext)))) eqn:Eq4.
+    cbn in H.
+    destruct (Acc_sem (Fsem E[| e1|] env (adv_ext (- Z.of_nat (S (S d))) (ExtMap_to_ExtEnv ext))) d (Some v0)) eqn:Eq5.
+    destruct ( E[| e1|] (v1 :: env) (adv_ext (Z.of_nat (S d)) (adv_ext (- Z.of_nat (S (S d))) (ExtMap_to_ExtEnv ext)))) eqn:Eq6.
+    rewrite H3 with
+        (expis :=  (l ++ IAccStart2 :: (((l2 ++ [IAccStep]) ++ repeat_app (l2 ++ [IAccStep]) d) ++ l2 ++ [IAccEnd]) ++ l1))
+        (v := v0) (ext := (adv_map (- Z.of_nat (S (S d))) ext)).
+    cbn. unfold Fsem in Eq5. cbn in Eq5.
 
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)) (v : Val),
