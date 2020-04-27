@@ -636,21 +636,41 @@ Proof. intro. induction e using Exp_ind'; intros.
          + destruct (sequence
                  (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
                       args)); discriminate.
-         + destruct (CompileE e1); try discriminate; destruct (sequence
+         + destruct (CompileE e1) eqn:Eq6; try discriminate; destruct (sequence
                  (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                    args)). destruct args; try discriminate.
-         + admit.
-         + admit.
-       - inversion H0. cbn in *. unfold ExtMap_to_ExtEnv. unfold find_default. reflexivity.
-       - inversion H0. cbn in *. rewrite <- lookupTranslateSound. reflexivity.
+                      args)). destruct args; try discriminate.
+           destruct (l4). try discriminate; destruct v2; try discriminate; destruct v1;
+             try discriminate; destruct v0 eqn:Eqv0; try discriminate. inversion H2.
+           inversion H4.  try (apply all_apply'' in H3; destruct H3).
+           repeat (rewrite <- app_assoc).
+           rewrite H3 with (expis := l3 ++ l2 ++ l ++ [IOp Cond] ++ l1) (v := (BVal b));try reflexivity.
+           rewrite H1 with (expis := l2 ++ l ++ [IOp Cond] ++ l1) (v := (BVal b0));try reflexivity.
+           rewrite H with (expis := l ++ [IOp Cond] ++ l1) (v := (BVal b1));try reflexivity.
+           apply Eq1. apply Eq3. apply Eq2. apply Eq4. apply Eq6. apply Eq5.
+           inversion H2.
+           inversion H4.  try (apply all_apply'' in H3; destruct H3).
+           repeat (rewrite <- app_assoc).
+           rewrite H3 with (expis := l3 ++ l2 ++ l ++ [IOp Cond] ++ l1) (v := (ZVal z));try reflexivity.
+           rewrite H1 with (expis := l2 ++ l ++ [IOp Cond] ++ l1) (v := (ZVal z0));try reflexivity.
+           rewrite H with (expis := l ++ [IOp Cond] ++ l1) (v := (BVal b));try reflexivity.
+           cbn.
+           apply Eq1. apply Eq3. apply Eq2. apply Eq4. apply Eq6. apply Eq5.
+           destruct v0; destruct v1; destruct v2; discriminate. discriminate.
+           destruct args; discriminate. destruct args; discriminate.
+         + destruct args; discriminate.
+         + destruct args; discriminate.
+         + destruct args; discriminate.
+       - inversion H0. inversion H1. cbn. unfold ExtMap_to_ExtEnv. unfold find_default.
+         reflexivity.
+       - inversion H0. inversion H1. cbn in *. rewrite <- lookupTranslateSound. reflexivity.
        - inversion H0.
          destruct (CompileE e1) eqn:Eq1; try discriminate.
          destruct (CompileE e2) eqn:Eq2; try discriminate.
          cbn in *. clear H0. inversion H2. cbn in *. repeat rewrite <- app_assoc. 
          rewrite IHe2 with
              (expis := (IAccStart2 :: repeat_app (IAccStep :: l) d ++ [IAccEnd]) ++ l1).
-         cbn. induction d.
-         +  
+         cbn. induction d. 
+         + 
        
          
          
