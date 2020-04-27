@@ -554,6 +554,48 @@ Lemma AdvanceMap3 : forall (ext: ExtMap) (z1 z2: Z),
     (adv_map z1 (adv_map (z2) ext)) = (adv_map (z1 + z2) ext).
 Proof. Admitted.
 
+
+Lemma AccStepSound:
+  forall (d : nat) (e1 : Exp) (e2 : Exp) (l2 : list instruction) (v : Val) (env: Env) (ext: ExtMap),
+    Esem (Acc e1 (S d) e2) env (ExtMap_to_ExtEnv ext) = Some v -> 
+    CompileE e1 = Some l2 ->
+    (forall (env : Env) (expis l0 l1 : list instruction)
+       (ext : ExtMap) (stack : list (option Val)) 
+       (v : Val),
+        expis = l0 ++ l1 ->
+        Some l2 = Some l0 ->
+        E[| e1|] env (ExtMap_to_ExtEnv ext) = Some v ->
+        StackEInterp (l0 ++ l1) stack env ext false =
+        StackEInterp l1 (Some v :: stack) env ext false) ->
+    forall l : list instruction,
+      CompileE e2 = Some l ->
+      (forall (env : Env) (expis l0 l1 : list instruction)
+         (ext : ExtMap) (stack : list (option Val)) 
+         (v : Val),
+          expis = l0 ++ l1 ->
+          Some l = Some l0 ->
+          E[| e2|] env (ExtMap_to_ExtEnv ext) = Some v ->
+          StackEInterp (l0 ++ l1) stack env ext false =
+          StackEInterp l1 (Some v :: stack) env ext false) ->
+      forall (env : Env) (l1 : list instruction) 
+        (ext : ExtMap) (stack : list (option Val)),
+        StackEInterp
+          (l ++
+             (IAccStart2
+                :: repeat_app (l2 ++ [IAccStep]) (d - 0) ++ l2 ++ [IAccEnd]) ++
+             l1) stack env (adv_map (- Z.of_nat (S d)) ext) false =
+        StackEInterp l1 (Some v :: stack) env ext false.
+Proof.
+  intros d. induction d; intros.
+  - cbn in *. destruct ( E[| e2|] env (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext))) eqn:Eq3; try discriminate.
+    destruct (E[| e1|] (v0 :: env) (adv_ext (Z.of_nat 1) (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext)))) eqn:Eq4; try discriminate.
+    
+  - cbn in *.
+    destruct (Acc_sem (Fsem E[| e1|] env (adv_ext (- Z.of_nat (S d)) (ExtMap_to_ExtEnv ext))) d) eqn: Eq3; try discriminate;
+      destruct ((E[| e2|] env (adv_ext (- Z.of_nat (S d)) (ExtMap_to_ExtEnv ext)))) eqn:Eq4; try discriminate.
+    +
+    
+
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)) (v : Val),
     expis = l0 ++ l1 ->
@@ -678,9 +720,10 @@ Proof. intro. induction e using Exp_ind'; intros.
            * rewrite AdvanceMap1 in Eq3. apply Eq3.
            * discriminate.
          + inversion H0. destruct (CompileE e2) eqn:Eq2; try discriminate. destruct (CompileE e1) eqn:Eq1; try discriminate.
-           inversion H3. clear H3. cbn. cbn in H1. 
-           induction d.
-           * cbn in *. repeat (rewrite <-  app_assoc).
+           inversion H3. clear H3. cbn. cbn in H1. clear H0. repeat (rewrite <- app_assoc).
+             
+           induction d. 
+           * cbn in *. repeat (rewrite <-  app_assoc). 
              destruct (E[| e2|] env (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext))) eqn:Eq4; try discriminate.
              rewrite IHe2 with (expis := (l ++ (IAccStart2  :: l2 ++ [] ++ [IAccEnd]) ++ l1)) (v := v0); try reflexivity.
              cbn in *. rewrite <- app_assoc.
