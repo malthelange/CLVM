@@ -100,6 +100,13 @@ Fixpoint Acc_sem {A} (f : nat -> A -> A) (n : nat) (z : A) : A :=
 Definition Fsem {A} (f : Env -> ExtEnv -> option A) (env : Env) (ext : ExtEnv) 
   := (fun m x => x >>= fun x' =>  f (x' :: env) (adv_ext (Z.of_nat m) ext)).
 
+Lemma F_acc_none : forall  (f : Env -> ExtEnv -> option Val ) (env: Env) (ext: ExtEnv) (d: nat),
+    Acc_sem (Fsem f env ext) d None = None.
+Proof. intros. induction d.
+       + reflexivity.
+       + cbn. rewrite IHd. reflexivity.
+Qed.
+
 (** Semantics of expressions in CL *)
 Fixpoint Esem (e : Exp) (env : Env) (ext : ExtEnv) : option Val :=
   match e with
@@ -343,7 +350,7 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (option Val)) (e
                | _ => None 
                end
     | IVar n => StackEInterp tl ((StackLookupEnv n env)::stack) env ext partial
-    | IAccStart1 z => StackEInterp tl stack env (adv_map (0-z) ext) partial
+    | IAccStart1 z => StackEInterp tl stack env (adv_map (-z) ext) partial
     | IAccStart2 => match stack with (Some v)::tl2 => StackEInterp tl tl2 (v::env) ext partial | _ => None end
     | IAccStep => match stack with (Some v)::tl2 => let env' := List.tl env in
                                                  StackEInterp tl tl2 (v::env') (adv_map 1 ext) partial | _ => None end
@@ -509,49 +516,6 @@ Proof. intros. inversion H. split.
        - apply H2.
        - apply H3.
 Qed.
-
-(** This is a proof for one case of Op-expressions. In principle i could just copy this 16 times, with a small correction to the asssertion,
-    and a the number of destructs for args. But that is way way too messy. So i need some way to refactor this into cleaner steps.
-    It might be worth it to look into the CL repository for already existing tactics.
- destruct op. 
-         + inversion H1. destruct args. discriminate. destruct args. discriminate. destruct args.
-           unfold LApp3 in H4. unfold liftM3 in H4. destruct (CompileE e0) eqn:Eq1. destruct (CompileE e) eqn:Eq2.
-           cbn in H4. unfold app3 in H4.  inversion H4. apply all_apply'' in H. destruct H.
-           apply all_apply'' in H3. destruct H3. repeat rewrite <-  app_assoc.
-           rewrite H3 with (extM := extM) (expis := (l ++ l2 ++ [IOp Add] ++ l1)) (l0 := l)
-                           (l1 := l2 ++ [IOp Add] ++ l1) (stack := stack) (env0 := env0)
-                           (f := (fun (env1 : Env) (ext2: ExtMap) => E[| e0|] env1 (ExtMap_to_ExtEnv ext2))).
-           rewrite H with (extM := extM) (expis := (l2 ++ [IOp Add] ++ l1)) (l0 := l2)
-                           (l1 := [IOp Add] ++ l1) (stack := ((fun (env1 : Env) (ext2 : ExtMap) => E[| e0|] env1 (ExtMap_to_ExtEnv ext2)) :: stack)) (env0 := env0)
-                           (f := (fun (env1 : Env) (ext2: ExtMap) => E[| e|] env1 (ExtMap_to_ExtEnv ext2))). rewrite <- H2. cbn. assert (H7: (fun (e1 : Env) (et : ExtMap) =>
-      match
-        match E[| e|] e1 (ExtMap_to_ExtEnv et) with
-        | Some v1 =>
-            match E[| e0|] e1 (ExtMap_to_ExtEnv et) with
-            | Some v2 => Some (v1, v2)
-            | None => None
-            end
-        | None => None
-        end
-      with
-      | Some (ZVal z1, BVal _) => None
-      | Some (ZVal z1, ZVal z2) => Some (ZVal (z1 + z2))
-      | _ => None
-      end) = (fun (env1 : Env) (ext2 : ExtMap) =>
-      do x <-
-      liftM2 (fun (x' : Val) (xs' : list Val) => x' :: xs')
-        (E[| e|] env1 (ExtMap_to_ExtEnv ext2))
-        (liftM2 (fun (x' : Val) (xs' : list Val) => x' :: xs')
-           (E[| e0|] env1 (ExtMap_to_ExtEnv ext2)) (Some [])); OpSem Add x)).
-            repeat (apply functional_extensionality ; intro). 
-             destruct (E[| e|] x (ExtMap_to_ExtEnv x0)) eqn:Eq5.
-             destruct (E[| e0|] x (ExtMap_to_ExtEnv x0)) eqn:Eq6; reflexivity.
-             reflexivity.
-             rewrite H7.  reflexivity.
-                            apply env. apply extM. reflexivity. apply Eq2. reflexivity. apply env. apply extM. reflexivity.
-                            apply Eq1. reflexivity. discriminate. discriminate. discriminate.
-*)
-
   
 Lemma AdvanceMap1 : forall (ext: ExtMap) (d : Z),
     adv_ext d (ExtMap_to_ExtEnv ext)  = ExtMap_to_ExtEnv (adv_map d ext).
@@ -600,16 +564,44 @@ Proof. intro. induction e using Exp_ind'; intros.
            rewrite H1 with ( expis := l2 ++ l ++ [IOp Add] ++ l1) (v :=  ((ZVal z0))); try reflexivity.
            rewrite H with (expis := (l ++ [IOp Add] ++ l1)) (v := (ZVal z)); try reflexivity.
            cbn. rewrite <- H2. reflexivity.  apply Eq1. apply Eq3. apply Eq2. apply Eq4. 
-         + admit.
-         + admit.
-         + admit.
-         + admit.
-         + admit.
-         + admit.
-         + admit.
-         + admit.
-         + admit.
-         + admit.
+         + destruct v0; try discriminate;  destruct v1; try discriminate.
+           rewrite H1 with ( expis := l2 ++ l ++ [IOp Sub] ++ l1) (v :=  ((ZVal z0))); try reflexivity.
+           rewrite H with (expis := (l ++ [IOp Sub] ++ l1)) (v := (ZVal z)); try reflexivity.
+           cbn. rewrite <- H2. reflexivity.  apply Eq1. apply Eq3. apply Eq2. apply Eq4.
+         + destruct v0; try discriminate;  destruct v1; try discriminate.
+           rewrite H1 with ( expis := l2 ++ l ++ [IOp Mult] ++ l1) (v :=  ((ZVal z0))); try reflexivity.
+           rewrite H with (expis := (l ++ [IOp Mult] ++ l1)) (v := (ZVal z)); try reflexivity.
+           cbn. rewrite <- H2. reflexivity.  apply Eq1. apply Eq3. apply Eq2. apply Eq4.
+         + destruct v0; try discriminate;  destruct v1; try discriminate.
+           rewrite H1 with ( expis := l2 ++ l ++ [IOp Div] ++ l1) (v :=  ((ZVal z0))); try reflexivity.
+           rewrite H with (expis := (l ++ [IOp Div] ++ l1)) (v := (ZVal z)); try reflexivity.
+           cbn. rewrite <- H2. reflexivity.  apply Eq1. apply Eq3. apply Eq2. apply Eq4.
+         + destruct v0; try discriminate;  destruct v1; try discriminate.
+           rewrite H1 with ( expis := l2 ++ l ++ [IOp And] ++ l1) (v :=  ((BVal b0))); try reflexivity.
+           rewrite H with (expis := (l ++ [IOp And] ++ l1)) (v := (BVal b)); try reflexivity.
+           cbn. rewrite <- H2. reflexivity.  apply Eq1. apply Eq3. apply Eq2. apply Eq4.
+         + destruct v0; try discriminate;  destruct v1; try discriminate.
+           rewrite H1 with ( expis := l2 ++ l ++ [IOp Or] ++ l1) (v :=  ((BVal b0))); try reflexivity.
+           rewrite H with (expis := (l ++ [IOp Or] ++ l1)) (v := (BVal b)); try reflexivity.
+           cbn. rewrite <- H2. reflexivity.  apply Eq1. apply Eq3. apply Eq2. apply Eq4.
+         + destruct v0; try discriminate;  destruct v1; try discriminate.
+           rewrite H1 with ( expis := l2 ++ l ++ [IOp Less] ++ l1) (v :=  ((ZVal z0))); try reflexivity.
+           rewrite H with (expis := (l ++ [IOp Less] ++ l1)) (v := (ZVal z)); try reflexivity.
+           cbn. rewrite <- H2. reflexivity.  apply Eq1. apply Eq3. apply Eq2. apply Eq4.
+         + destruct v0; try discriminate;  destruct v1; try discriminate.
+           rewrite H1 with ( expis := l2 ++ l ++ [IOp Leq] ++ l1) (v :=  ((ZVal z0))); try reflexivity.
+           rewrite H with (expis := (l ++ [IOp Leq] ++ l1)) (v := (ZVal z)); try reflexivity.
+           cbn. rewrite <- H2. reflexivity.  apply Eq1. apply Eq3. apply Eq2. apply Eq4.
+         + destruct v0; try discriminate;  destruct v1; try discriminate.
+           rewrite H1 with ( expis := l2 ++ l ++ [IOp Equal] ++ l1) (v :=  ((ZVal z0))); try reflexivity.
+           rewrite H with (expis := (l ++ [IOp Equal] ++ l1)) (v := (ZVal z)); try reflexivity.
+           cbn. rewrite <- H2. reflexivity.  apply Eq1. apply Eq3. apply Eq2. apply Eq4.
+         + destruct v0; try discriminate.
+           rewrite H with (expis := (l ++ [IOp Not] ++ l1)) (v := (BVal b)); try reflexivity.
+           rewrite <- H2. reflexivity. apply Eq1. apply Eq3.
+         + destruct v0; try discriminate.
+           rewrite H with (expis := (l ++ [IOp Neg] ++ l1)) (v := (ZVal z)); try reflexivity.
+           rewrite <- H2. reflexivity. apply Eq1. apply Eq3.
          + rewrite H2. reflexivity.
          + destruct (sequence
                  (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
@@ -665,13 +657,31 @@ Proof. intro. induction e using Exp_ind'; intros.
        - inversion H0. inversion H1. cbn in *. rewrite <- lookupTranslateSound. reflexivity.
        - inversion H0.
          destruct (CompileE e1) eqn:Eq1; try discriminate.
-         destruct (CompileE e2) eqn:Eq2; try discriminate.
-         cbn in *. clear H0. inversion H2. cbn in *. repeat rewrite <- app_assoc. 
-         rewrite IHe2 with
-             (expis := (IAccStart2 :: repeat_app (IAccStep :: l) d ++ [IAccEnd]) ++ l1).
-         cbn. induction d. 
-         + 
-       
+         destruct (CompileE e2) eqn:Eq2; try discriminate. 
+         cbn in *. clear H0. inversion H3. cbn in *. repeat rewrite <- app_assoc.  clear H3.
+         destruct ((E[| e2|] env (adv_ext (- Z.of_nat d) (ExtMap_to_ExtEnv ext)))) eqn:Eq3.
+         rewrite IHe2 with (expis := (l2 ++ (IAccStart2 :: repeat_app (IAccStep :: l) d ++ [IAccEnd]) ++ l1))
+                           (ext := (adv_map (- Z.of_nat d) ext)) (v := v0); try reflexivity.
+         
+         + rewrite AdvanceMap1 in Eq3.  apply Eq3.
+         + rewrite F_acc_none in H1. discriminate.
+
+Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
+    CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = vmE expis env extM.
+Proof.
+  intros. unfold vmE. rewrite (app_nil_end expis).
+  destruct (Esem e env (ExtMap_to_ExtEnv extM)) eqn:Eq.
+  rewrite TranlateExpressionStep with (e := e) (expis := (expis ++ [])) (v := v).
+  reflexivity.
+  + reflexivity.
+  + apply H.
+  + apply Eq.
+  + destruct e.
+    * admit.
+    * inversion H. cbn in *. unfold ExtMap_to_ExtEnv in Eq. unfold find_default. destruct (FMap.find (l,i)); discriminate.
+    * inversion H. cbn in *.  rewrite <- lookupTranslateSound. symmetry. apply Eq.
+    * inversion H. admit.
+Qed.
          
          
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env) (extM : ExtMap) (expis l0 l1 : list instruction)
