@@ -557,8 +557,9 @@ Proof. Admitted.
 
 Lemma AccStepSound:
   forall (d : nat) (e1 : Exp) (e2 : Exp) (l l2 : list instruction) (v0 v1 : Val) (env: Env) (ext: ExtMap),
-    Esem (Acc e1 (S d) e2) env (ExtMap_to_ExtEnv ext) = Some v1 ->
-    Esem (Acc e1 (d) e2) env (ExtMap_to_ExtEnv ext) = Some v0 ->
+    (d > 1)% nat ->
+    Acc_sem (Fsem E[|e1|] env ext) (S d) (E[|e2|] env ext) = Some v1 ->
+    Acc_sem (Fsem E[|e1|] env ext) (d) (E[|e2|] env ext) = Some v0 ->
     CompileE e1 = Some l2 ->
     (forall (env : Env) (l0 l1 : list instruction)
        (ext : ExtMap) (stack : list (option Val)) 
@@ -579,11 +580,19 @@ Lemma AccStepSound:
         (stack : list (option Val)),
         StackEInterp
           (repeat_app (l2 ++ [IAccStep]) d ++ l2 ++ [IAccEnd] ++
-             l1) (Some v1::stack) env (adv_map (- Z.of_nat (d)) ext) false =
+             l1) (stack) (v0::env) (ext) false =
         StackEInterp l1 (Some v1 :: stack) env ext false.
 Proof.
   intros d. induction d; intros.
-  - cbn in *. 
+  - cbn in *. destruct ( E[| e2|] env (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext))) eqn:Eq3; try discriminate.
+    destruct (E[| e1|] (v0 :: env) (adv_ext (Z.of_nat 1) (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext)))) eqn:Eq4; try discriminate.
+    rewrite H3 with (l0 := l ) (v := v0) (ext:= adv_map (- Z.of_nat 1) ext); try reflexivity.
+    cbn in *. rewrite <- app_assoc.
+    rewrite H1 with (l0 := l2) (env := (v0 :: env)) (ext := (adv_map 1 (adv_map (- Z.of_nat 1) ext))) (v := v1);
+      try reflexivity.
+    cbn. rewrite H. unfold Z.of_nat. cbn. rewrite AdvanceMap3. assert (H5: (1 + - (1)) = 0). omega. rewrite H5.
+    rewrite AdvanceMap2. reflexivity. rewrite AdvanceMap1 in Eq4. rewrite AdvanceMap1 in Eq4.
+    unfold Z.of_nat in Eq4. cbn in Eq4. unfold Z.of_nat. cbn. apply Eq4. rewrite AdvanceMap1 in Eq3. apply Eq3.
   -
     (* Vis at E[| Acc e1 (S d) e2|] env (ExtMap_to_ExtEnv ext) evaluere til (Some v) fra 
       E[| Acc e1 (S (S d)) e2|] env (ExtMap_to_ExtEnv ext) =
