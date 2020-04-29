@@ -830,15 +830,64 @@ Lemma DelayEqual:
 Proof.
   intros n t0 x H1. Admitted.
 
-Lemma WithinSound : forall (expis: list instruction) (i n : nat) (extM : ExtMap) (env: Env) (e : Exp) (c1 c2 : Contr)
-  (rc: ExtEnv),
-    rc = adv_ext (- (Z.of_nat n)) (ExtMap_to_ExtEnv extM) ->
+Lemma AdvanceExt1 : forall (ext : ExtEnv) (z1 z2 : Z),
+    adv_ext z1 (adv_ext z2 ext) = adv_ext (z1 + z2) ext.
+Proof.
+  intros. unfold adv_ext. repeat (apply functional_extensionality; intros).
+  assert (H5: (z2 + (z1 + x0)) = (z1 + z2 + x0)). omega. rewrite H5. reflexivity.
+Qed.
+
+Lemma AdvanceExtNeutral : forall (ext : ExtEnv),
+    adv_ext 0 ext = ext.
+Proof. intro. reflexivity. Qed.
+
+Lemma Stupid:
+  forall n : nat, (n - n)%nat = 0%nat.
+Proof.
+  intros n. induction n. reflexivity. cbn. apply IHn.
+Qed.
+
+Lemma Stupid2:
+  forall x : nat, (x - 0)%nat = x.
+Proof.
+  intros x. induction x. cbn. reflexivity. cbn. reflexivity.
+Qed.
+  
+Lemma DelayTraceNeutral:
+  forall t : Trace, t = (delay_trace 0 t).
+Proof.
+  intros t.
+  repeat (apply functional_extensionality; intro). unfold delay_trace. cbn. rewrite Stupid2. reflexivity.
+Qed.  
+
+Lemma WithinSound : forall  (n i : nat) (expis: list instruction) (extM : ExtMap) (env: Env) (e : Exp) (c1 c2 : Contr),
     CompileE e = Some expis -> 
 stack_within_sem expis n env extM false = Some (true, i) ->
-within_sem C[| c1|] C[| c2|] e n env (ExtMap_to_ExtEnv extM) = C[| c1|] env (adv_ext (Z.of_nat i) rc).
+within_sem C[| c1|] C[| c2|] e n env (ExtMap_to_ExtEnv extM) =
+do v <- C[| c1|] env (adv_ext (Z.of_nat (n - i)) (ExtMap_to_ExtEnv extM));
+Some (delay_trace (n - i) v).
 Proof.
-  intros. unfold stack_within_sem in H1. unfold within_sem.
-  
+  intro. induction n; intros.
+  - cbn in *.
+    destruct (StackEInterp expis [] env extM false) eqn:Eq1; try discriminate.
+    destruct v eqn:Eq2; try discriminate. destruct b eqn:Eq3; try discriminate. inversion H0.
+    rewrite <- TranslateExpressionSound with (e := e) in Eq1; auto. rewrite Eq1.
+    destruct (C[| c1|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4. unfold Z.of_nat. cbn. rewrite AdvanceExtNeutral.
+    rewrite Eq4. rewrite <-  DelayTraceNeutral. reflexivity. cbn. unfold Z.of_nat. rewrite AdvanceExtNeutral.
+    rewrite Eq4. reflexivity.    
+  - cbn in *. destruct (StackEInterp expis [] env extM false) eqn:Eq1; try discriminate.
+    destruct v eqn:E1; try discriminate. destruct b eqn:Eq3.
+    + inversion H0.
+      rewrite <- TranslateExpressionSound with (e := e) in Eq1; auto. rewrite Eq1. cbn. rewrite Stupid.
+      unfold Z.of_nat. rewrite AdvanceExtNeutral. destruct (C[| c1|] env (ExtMap_to_ExtEnv extM)).
+      rewrite <- DelayTraceNeutral. reflexivity. reflexivity.
+    +  rewrite <- TranslateExpressionSound with (e := e) in Eq1; auto. rewrite Eq1.
+       rewrite AdvanceMap1. rewrite IHn with (i := i) (expis := expis).
+       rewrite <- AdvanceMap1. rewrite AdvanceExt1.
+       assert (H1:  (Z.of_nat (n - i) + 1) = (Z.of_nat (S n - i))).
+      
+
+        
 Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (t: Trace)
                                (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list (bool * nat)),
     CompileC c = Some l1 ->
