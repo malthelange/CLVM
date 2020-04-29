@@ -232,7 +232,9 @@ Fixpoint CompileC (c : Contr) : option (list CInstruction) :=
   | Zero => Some [CIZero]
   | Transfer p1 p2 a => Some [CITransfer p1 p2 a]
   | Scale e c => do es <- CompileE e; liftM2 List.app (CompileC c) (Some [CIScale (es)])
-  | Both c1 c2 => LApp3 (CompileC c2) (CompileC c1) (Some [CIBoth])
+  | Both c1 c2 => do s1 <- CompileC c1;
+                 do s2 <- CompileC c2;
+                 Some (s2 ++ s1 ++ [CIBoth] )
   | Translate n c1 => do s <- (CompileC c1) ;                                    
                      (Some ([CITranslate n] ++ s ++ [CITranslateEnd n]))
   | If e n c1 c2 => do es <- CompileE e;
@@ -554,7 +556,7 @@ Lemma AdvanceMap3 : forall (ext: ExtMap) (z1 z2: Z),
     (adv_map z1 (adv_map (z2) ext)) = (adv_map (z1 + z2) ext).
 Proof. Admitted.
 
-
+(*
 Lemma AccStepSound:
   forall (d : nat) (e1 : Exp) (e2 : Exp) (l l2 : list instruction) (v0 v1 : Val) (env: Env) (ext: ExtMap), 
     Acc_sem (Fsem E[|e1|] env (ExtMap_to_ExtEnv ext)) (S d) (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some v2 ->
@@ -588,7 +590,7 @@ Proof.
     rewrite H2 with (v := v2). cbn. inversion H. reflexivity. reflexivity. rewrite AdvanceMap1 in Eq4.
     unfold Z.of_nat in Eq4. cbn in Eq4. inversion H0. rewrite H6 in Eq4 . apply Eq4.
   - cbn in *.
-
+*)
 
 Lemma TranlateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)) (v : Val),
@@ -780,18 +782,49 @@ Definition traceMtoTrace (t : TraceM) (default: Z) : Trace :=
 Definition option_traceM_to_Trace (t : option TraceM) (default: Z) : option Trace :=
   liftM2 traceMtoTrace t (Some 0).
 
-Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (t: Trace) (tm : TraceM)
+Axiom TraceEquality : forall (t1 t2 : TraceM),
+    (forall (n : nat) (p1 p2 : Party) (a : Asset), lookupTraceM (Some t1) n p1 p2 a = lookupTraceM (Some t2) n p1 p2 a) -> t1 = t2.
+
+Axiom TraceTransEq : forall (t1 t2 : TraceM),
+    traceMtoTrace t1 0 = traceMtoTrace t2 0 -> t1 = t2.
+
+Axiom empty_TraceM_empty : forall n, FMap.find n empty_traceM = None.
+
+
+Lemma addTraceHelp: forall (tm1 tm2 : TraceM),
+    traceMtoTrace (add_traceM tm1 tm2) 0 = add_trace (traceMtoTrace tm1 0) (traceMtoTrace tm2 0).
+  Admitted.
+
+Lemma addTraceEqual:
+      forall (t0 t1 : Trace) (tm1 tm2 : TraceM),
+        traceMtoTrace tm1 0 = t0 ->
+        traceMtoTrace tm2 0 = t1 ->
+        traceMtoTrace (add_traceM tm1 tm2) 0 = add_trace t0 t1.
+Proof.
+  intros. rewrite <- H. rewrite <- H0. apply addTraceHelp.
+Qed.
+
+Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (t: Trace)
                                (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list (bool * nat)),
     CompileC c = Some l1 ->
     Csem c env (ExtMap_to_ExtEnv extM) = Some t ->
-    t = traceMtoTrace (tm) 0 -> 
-    StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack = StackCInterp l2 ((Some tm)::stack)env (extM::extMs) w_stack.
+    exists tm,
+    traceMtoTrace tm 0 = t /\ 
+    StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack = StackCInterp l2 ((Some tm)::stack) env (extM::extMs) w_stack .
 Proof.
   intro. induction c; intros.
-  - inversion H0. inversion H. cbn in *. rewrite <- H3 in H1. 
   - admit.
   - admit.
   - admit.
-  - inversion H.
-
+  - admit.
+  - inversion H. destruct (CompileC c1) eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate.
+    inversion H2. inversion H0.
+    destruct (C[| c1|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3;
+      destruct ((C[| c2|] env (ExtMap_to_ExtEnv extM))) eqn:Eq4; try discriminate. repeat (rewrite <- app_assoc). 
+    destruct (IHc2 env extM extMs t1 l0 (l ++ [CIBoth] ++ l2) stack w_stack); try reflexivity. apply Eq4. destruct H1.
+    rewrite H5.
+    destruct (IHc1 env extM extMs t0 l ([CIBoth] ++ l2) (Some x ::stack) w_stack); try reflexivity. apply Eq3. destruct H6.
+    rewrite H7. cbn. unfold Monads.pure. exists (add_traceM x0 x). split. cbn in H4. unfold Monads.pure in H4. inversion H4.
+    apply addTraceEqual. apply H6. apply H1. reflexivity.
+  - 
       
