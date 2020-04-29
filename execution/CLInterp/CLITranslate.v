@@ -377,6 +377,7 @@ Fixpoint stack_within_sem  (expis : list instruction) (i : nat)  (env : Env) (rc
      | _ => None
      end.
 
+
 (** Definition of semantics for CLVM, parameters are in reverse polish notation *)
 Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)) (env : Env) (exts: list ExtMap) (w_stack : list (bool * nat)) : option TraceM :=
   match instrs with
@@ -828,6 +829,15 @@ Lemma DelayEqual:
     traceMtoTrace (delay_traceM n x) 0 = delay_trace n t0.
 Proof.
   intros n t0 x H1. Admitted.
+
+Lemma WithinSound : forall (expis: list instruction) (i n : nat) (extM : ExtMap) (env: Env) (e : Exp) (c1 c2 : Contr)
+  (rc: ExtEnv),
+    rc = adv_ext (- (Z.of_nat n)) (ExtMap_to_ExtEnv extM) ->
+    CompileE e = Some expis -> 
+stack_within_sem expis n env extM false = Some (true, i) ->
+within_sem C[| c1|] C[| c2|] e n env (ExtMap_to_ExtEnv extM) = C[| c1|] env (adv_ext (Z.of_nat i) rc).
+Proof.
+  intros. unfold stack_within_sem in H1. unfold within_sem.
   
 Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (t: Trace)
                                (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list (bool * nat)),
@@ -886,5 +896,7 @@ Proof.
     apply DelayEqual. apply H1.
     + reflexivity.
     + discriminate.
-  - admit.
+  - inversion H. destruct (CompileE e) eqn:Eq1; try discriminate; destruct (CompileC c1) eqn:Eq2; try discriminate;
+                   destruct (CompileC c2) eqn:Eq3; try discriminate.
+    inversion H2. inversion H0. unfold within_sem in H4. cbn. unfold stack_within_sem.
 
