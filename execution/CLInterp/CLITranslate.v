@@ -223,6 +223,7 @@ Inductive CInstruction :=
 | CITranslate : nat -> CInstruction
 | CITranslateEnd : nat ->  CInstruction
 | CILet : list instruction -> CInstruction
+| CILetEnd : CInstruction
 | CIIf : list instruction -> nat -> CInstruction
 | CIIfEnd : CInstruction.
 
@@ -245,7 +246,7 @@ Fixpoint CompileC (c : Contr) : option (list CInstruction) :=
                    Some ([CIIf es n] ++ s2 ++ s1 ++ [CIIfEnd])
   | Let e c => do es <- CompileE e;
               do s <- CompileC c;
-              Some ([CILet es] ++ s)
+              Some ([CILet es] ++ s ++ [CILetEnd])
   end.
 
 Definition pop (l : list (Env -> ExtMap -> option Val)) (env : Env) (ext : ExtMap) :=
@@ -412,7 +413,8 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)
                          end
     | CILet expis => do et <- hd_error exts;
                      do v <- (StackEInterp expis [] env et false);
-                       StackCInterp tl stack (v::env) exts w_stack
+                     StackCInterp tl stack (v::env) exts w_stack
+    | CILetEnd => StackCInterp tl stack (List.tl env) exts w_stack
     | CIIf expis n => match exts with | et::exts' =>
                                        match stack_within_sem expis n env et false with
                                        | Some (branch, d_left) => 
@@ -504,6 +506,8 @@ Fixpoint StackCPartial (instrs : list CInstruction) (stack : list (option TraceM
     | CILet expis => do et <- hd_error exts;
                     do v <- (StackEInterp expis [] env et false);
                     StackCPartial tl stack (v::env) exts w_stack
+    | CILetEnd => StackCPartial tl stack (List.tl env) exts w_stack
+   
     end
   end.
 
@@ -836,7 +840,15 @@ Proof.
   intro. induction c; intros.
   - exists (empty_traceM). split. inversion H0. unfold traceMtoTrace. cbn. repeat (apply functional_extensionality; intro).
     rewrite empty_TraceM_empty. reflexivity. inversion H. cbn. reflexivity.
-  - admit.
+  - inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
+    inversion H2. inversion H0. cbn. rewrite <- TranslateExpressionSound with (e:=e). 
+    destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3; try discriminate;
+      destruct (C[| c|] (v :: env) (ExtMap_to_ExtEnv extM)) eqn:Eq4; try discriminate. rewrite <- app_assoc.
+    destruct (IHc (v::env) extM extMs t0 l0 ([CILetEnd] ++ l2) stack w_stack). reflexivity. apply Eq4.
+    destruct H1. rewrite H5. exists x. split.
+    + inversion H4. rewrite <- H7. apply H1.
+    + reflexivity.
+    + apply Eq1.
   - inversion H. cbn. inversion H0. exists (singleton_traceM (singleton_transM p p0 a 1)).
     split.
     + apply SingleTraceEqual.
@@ -871,6 +883,8 @@ Proof.
     rewrite <- app_assoc.
     destruct (IHc env (adv_map (Z.of_nat n) extM) (extM::extMs) t0 l ( [CITranslateEnd n] ++ l2) stack w_stack). reflexivity.
     rewrite AdvanceMap1 in Eq2. apply Eq2. destruct H1. rewrite H6. cbn. exists (delay_traceM n x). split.
-    apply DelayEqual. apply H1. reflexivity.
+    apply DelayEqual. apply H1.
+    + reflexivity.
+    + discriminate.
   - admit.
-      
+
