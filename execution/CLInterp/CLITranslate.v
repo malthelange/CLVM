@@ -231,7 +231,9 @@ Fixpoint CompileC (c : Contr) : option (list CInstruction) :=
   match c with
   | Zero => Some [CIZero]
   | Transfer p1 p2 a => Some [CITransfer p1 p2 a]
-  | Scale e c => do es <- CompileE e; liftM2 List.app (CompileC c) (Some [CIScale (es)])
+  | Scale e c => do es <- CompileE e;
+                do s <- CompileC c;
+                Some (s ++  [CIScale (es)])
   | Both c1 c2 => do s1 <- CompileC c1;
                  do s2 <- CompileC c2;
                  Some (s2 ++ s1 ++ [CIBoth] )
@@ -725,7 +727,7 @@ Proof. intro. induction e using Exp_ind'; intros.
              cbn in *. Admitted.
 
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
-    CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = vmE expis env extM.
+    CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = StackEInterp expis [] env extM false.
 Proof.
   intros. unfold vmE. rewrite (app_nil_end expis).
   destruct (Esem e env (ExtMap_to_ExtEnv extM)) eqn:Eq.
@@ -782,14 +784,9 @@ Definition traceMtoTrace (t : TraceM) (default: Z) : Trace :=
 Definition option_traceM_to_Trace (t : option TraceM) (default: Z) : option Trace :=
   liftM2 traceMtoTrace t (Some 0).
 
-Axiom TraceEquality : forall (t1 t2 : TraceM),
-    (forall (n : nat) (p1 p2 : Party) (a : Asset), lookupTraceM (Some t1) n p1 p2 a = lookupTraceM (Some t2) n p1 p2 a) -> t1 = t2.
-
-Axiom TraceTransEq : forall (t1 t2 : TraceM),
-    traceMtoTrace t1 0 = traceMtoTrace t2 0 -> t1 = t2.
-
-Axiom empty_TraceM_empty : forall n, FMap.find n empty_traceM = None.
-
+Lemma empty_TraceM_empty : forall n, FMap.find n empty_traceM = None.
+Proof. Admitted.
+                                                            
 
 Lemma addTraceHelp: forall (tm1 tm2 : TraceM),
     traceMtoTrace (add_traceM tm1 tm2) 0 = add_trace (traceMtoTrace tm1 0) (traceMtoTrace tm2 0).
@@ -804,6 +801,30 @@ Proof.
   intros. rewrite <- H. rewrite <- H0. apply addTraceHelp.
 Qed.
 
+Lemma SingleTraceEqual:
+  forall (p p0 : Party) (a : Asset),
+    traceMtoTrace (singleton_traceM (singleton_transM p p0 a 1)) 0 =
+    singleton_trace (singleton_trans p p0 a 1).
+Proof.
+  intros p p0 a. unfold traceMtoTrace. unfold singleton_trace. unfold singleton_trans. unfold lookupTraceM.
+  cbn. unfold singleton_traceM. unfold singleton_transM.
+  repeat (apply functional_extensionality; intro). cbn. destruct (x).
+Admitted.
+
+Lemma ScaleEqual:
+  forall (t0 : Trace) (z : Z) (x : TraceM),
+    traceMtoTrace x 0 = t0 ->
+    traceMtoTrace (scale_traceM z x) 0 = scale_trace z t0.
+Proof.
+  intros t0 z x H1. Admitted.
+
+Lemma DelayEqual:
+  forall (n : nat) (t0 : Trace) (x : TraceM),
+    traceMtoTrace x 0 = t0 ->
+    traceMtoTrace (delay_traceM n x) 0 = delay_trace n t0.
+Proof.
+  intros n t0 x H1. Admitted.
+  
 Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (t: Trace)
                                (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list (bool * nat)),
     CompileC c = Some l1 ->
@@ -813,10 +834,28 @@ Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (ext
     StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack = StackCInterp l2 ((Some tm)::stack) env (extM::extMs) w_stack .
 Proof.
   intro. induction c; intros.
+  - exists (empty_traceM). split. inversion H0. unfold traceMtoTrace. cbn. repeat (apply functional_extensionality; intro).
+    rewrite empty_TraceM_empty. reflexivity. inversion H. cbn. reflexivity.
   - admit.
-  - admit.
-  - admit.
-  - admit.
+  - inversion H. cbn. inversion H0. exists (singleton_traceM (singleton_transM p p0 a 1)).
+    split.
+    + apply SingleTraceEqual.
+    + reflexivity.
+  - inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
+    inversion H2. cbn. inversion H0.
+    destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3.
+    destruct (C[| c|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4.
+    unfold liftM2 in H4. unfold Monads.pure in H4. cbn in H4. destruct (toZ v) eqn:Eq5; try discriminate.
+    rewrite <- app_assoc.
+    destruct (IHc env extM extMs t0 l0 ([CIScale l] ++ l2) stack w_stack). reflexivity. apply Eq4.
+    destruct H1. rewrite H5. cbn. rewrite <- TranslateExpressionSound with (e := e). rewrite Eq3.
+    cbn. unfold Monads.pure. rewrite Eq5. exists (scale_traceM z x).
+    split.
+    + inversion H4. apply ScaleEqual. apply H1.
+    + reflexivity.
+    + apply Eq1.
+    + cbn in H4. destruct (toZ v); discriminate.
+    + cbn in H4. discriminate.
   - inversion H. destruct (CompileC c1) eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate.
     inversion H2. inversion H0.
     destruct (C[| c1|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3;
@@ -826,5 +865,12 @@ Proof.
     destruct (IHc1 env extM extMs t0 l ([CIBoth] ++ l2) (Some x ::stack) w_stack); try reflexivity. apply Eq3. destruct H6.
     rewrite H7. cbn. unfold Monads.pure. exists (add_traceM x0 x). split. cbn in H4. unfold Monads.pure in H4. inversion H4.
     apply addTraceEqual. apply H6. apply H1. reflexivity.
-  - 
+  - inversion H. destruct (CompileC c) eqn:Eq1; try discriminate. inversion H2. cbn.
+    inversion H0. cbn in H4.
+    destruct (C[| c|] env (adv_ext (Z.of_nat n) (ExtMap_to_ExtEnv extM))) eqn:Eq2. unfold Monads.pure in H4. inversion H4.
+    rewrite <- app_assoc.
+    destruct (IHc env (adv_map (Z.of_nat n) extM) (extM::extMs) t0 l ( [CITranslateEnd n] ++ l2) stack w_stack). reflexivity.
+    rewrite AdvanceMap1 in Eq2. apply Eq2. destruct H1. rewrite H6. cbn. exists (delay_traceM n x). split.
+    apply DelayEqual. apply H1. reflexivity.
+  - admit.
       
