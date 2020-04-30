@@ -379,66 +379,78 @@ Fixpoint stack_within_sem  (expis : list instruction) (i : nat)  (env : Env) (rc
 
 
 (** Definition of semantics for CLVM, parameters are in reverse polish notation *)
-Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)) (env : Env) (exts: list ExtMap) (w_stack : list (bool * nat)) : option TraceM :=
+Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)) (env : Env) (exts: list ExtMap) (w_stack : list (bool * nat)) (badLet: nat): option TraceM :=
   match instrs with
   | [] => match stack with [res] => res | _ => None end
   | hd::tl =>
-    match hd with
-    | CIZero => StackCInterp tl ((Some empty_traceM)::stack) env exts w_stack
-    | CITransfer p1 p2 c => StackCInterp tl ((Some (singleton_traceM (singleton_transM p1 p2 c 1)))::stack) env exts w_stack
-    | CIScale expis => match stack with
-                      | hd2::tl2 =>
-                        do et <- hd_error exts;
-                        let trace :=
-                            (do z <- liftM toZ (StackEInterp expis [] env et false); liftM2 scale_traceM z hd2)
-                        in StackCInterp tl (trace::tl2) env exts w_stack
-                      | [] => None
-                      end
-    | CIBoth => match stack with
-               | t1::t2::tl2 =>
-                 let trace := (liftM2 add_traceM t1 t2) in
-                 StackCInterp tl (trace::tl2) env exts w_stack
-               | _ => None end
-    | CITranslate n  => do et <- hd_error exts;
-                       let et' := (adv_map (Z.of_nat n) et) in
-                       StackCInterp tl stack env (et'::exts) w_stack
-    | CITranslateEnd n => match stack with
-                         |t::tl2 => match exts with
-                                  | et::exts' =>
-                                    do t' <- t;
-                                    let trace := (delay_traceM n t') in
-                                    StackCInterp tl ((Some trace)::tl2) env exts' w_stack
-                                  | p_ => None
-                                  end
-                         | _ => None
+    match badLet with
+    | S n => match hd with
+            | CILetEnd => match n with
+                         | O => StackCInterp tl (None::stack) env exts w_stack O
+                         | n' => StackCInterp tl stack env exts w_stack n'
                          end
-    | CILet expis => do et <- hd_error exts;
-                     do v <-  (StackEInterp expis [] env et false);
-                     StackCInterp tl stack (v::env) exts w_stack
-    | CILetEnd => StackCInterp tl stack (List.tl env) exts w_stack
-    | CIIf expis n => match exts with | et::exts' =>
-                                       match stack_within_sem expis n env et false with
-                                       | Some (branch, d_left) => 
-                                         let d_passed := (n - d_left)%nat in
-                                         let et' := adv_map (Z.of_nat d_passed) et in
-                                         StackCInterp tl stack env (et'::exts') ((branch, d_passed)::w_stack)
-                                       | _ => None
-                                       end
+            | CILet expis => StackCInterp tl stack env exts w_stack (S (S n))
+            | _ => StackCInterp tl stack env exts w_stack (S n)
+          end
+    | O => 
+      match hd with
+      | CIZero => StackCInterp tl ((Some empty_traceM)::stack) env exts w_stack 0
+      | CITransfer p1 p2 c => StackCInterp tl ((Some (singleton_traceM (singleton_transM p1 p2 c 1)))::stack) env exts w_stack 0
+      | CIScale expis => match stack with
+                        | hd2::tl2 =>
+                          do et <- hd_error exts;
+                          let trace :=
+                              (do z <- liftM toZ (StackEInterp expis [] env et false); liftM2 scale_traceM z hd2)
+                          in StackCInterp tl (trace::tl2) env exts w_stack O
+                        | [] => None
+                        end
+      | CIBoth => match stack with
+                 | t1::t2::tl2 =>
+                   let trace := (liftM2 add_traceM t1 t2) in
+                   StackCInterp tl (trace::tl2) env exts w_stack O
+                 | _ => None end
+      | CITranslate n  => do et <- hd_error exts;
+                         let et' := (adv_map (Z.of_nat n) et) in
+                         StackCInterp tl stack env (et'::exts) w_stack O
+      | CITranslateEnd n => match stack with
+                           |t::tl2 => match exts with
+                                    | et::exts' =>
+                                      do t' <- t;
+                                      let trace := (delay_traceM n t') in
+                                      StackCInterp tl ((Some trace)::tl2) env exts' w_stack O
+                                    | p_ => None
+                                    end
+                           | _ => None
+                           end
+      | CILet expis => do et <- hd_error exts;
+                      match (StackEInterp expis [] env et false) with
+                      | Some v =>  StackCInterp tl stack (v::env) exts w_stack O
+                      | None => StackCInterp tl stack env exts w_stack 1
+                      end
+      | CILetEnd => StackCInterp tl stack (List.tl env) exts w_stack O
+      | CIIf expis n => match exts with | et::exts' =>
+                                         match stack_within_sem expis n env et false with
+                                         | Some (branch, d_left) => 
+                                           let d_passed := (n - d_left)%nat in
+                                           let et' := adv_map (Z.of_nat d_passed) et in
+                                           StackCInterp tl stack env (et'::exts') ((branch, d_passed)::w_stack) O
+                                         | _ => None
+                                         end
+                                  | _ => None
+                       end
+      | CIIfEnd => match stack with
+                  | t1::t2::tl2 => match w_stack with
+                                | w::w_stack' => 
+                                  let (branch, d_passed) := w in
+                                  do t1' <- t1;
+                                  do t2' <- t2;
+                                  let trace := delay_traceM d_passed (if branch then t1' else t2') in
+                                  StackCInterp tl ((Some trace)::tl2) env (List.tl exts) w_stack' O
                                 | _ => None
-                     end
-    | CIIfEnd => match stack with
-                | t1::t2::tl2 => match w_stack with
-                              | w::w_stack' => 
-                                let (branch, d_passed) := w in
-                                do t1' <- t1;
-                                do t2' <- t2;
-                                 let trace := delay_traceM d_passed (if branch then t1' else t2') in
-                                 StackCInterp tl ((Some trace)::tl2) env (List.tl exts) w_stack'
-                              | _ => None
-                              end
-                | _ => None
-                end
-                                 
+                                end
+                  | _ => None
+                  end
+      end                  
     end
   end.
 
@@ -749,7 +761,7 @@ Proof.
 Admitted.
          
 Definition vmC (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
-  StackCInterp instrs [] env [ext] [].
+  StackCInterp instrs [] env [ext] [] 0.
 
 
 Definition vmPartial (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
@@ -925,17 +937,46 @@ Proof.
        apply H2. reflexivity. apply H. apply H0.
 Qed.
 
-Lemma TranlateContractStepNone : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (t: Trace)
+Lemma BadLetSound:
+      forall (c : Contr) (l0 : list CInstruction),
+        CompileC c = Some l0 ->
+        forall (env : Env) (extM : ExtMap) (extMs : list ExtMap)
+               (l2 : list CInstruction) (stack : list (option TraceM))
+               (w_stack : list (bool * nat)),
+          StackCInterp (l0 ++ [CILetEnd] ++ l2) stack env
+                       (extM :: extMs) w_stack 1 =
+          StackCInterp l2 (None :: stack) env (extM :: extMs) w_stack 0.
+    Proof.
+      intro. induction c; intros.
+      - inversion H.  reflexivity.
+      - inversion H. destruct (CompileE e). destruct (CompileC c). inversion H1.
+        Admitted.
+      
+(*
+Lemma TranlateContractStepNone : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap)
                                    (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list (bool * nat)),
     CompileC c = Some l1 ->
     Csem c env (ExtMap_to_ExtEnv extM) = None ->
-    StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack = StackCInterp l2 (None::stack) env (extM::extMs) w_stack .
+    StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack 0 = StackCInterp l2 (None::stack) env (extM::extMs) w_stack 0.
 Proof.
   intro. induction c; intros.
   - cbn in H0. discriminate.
-  - cbn in *. destruct (CompileE e); destruct (CompileC c). inversion H. cbn.
+  - cbn in *. destruct (CompileE e) eqn: Eq1. destruct (CompileC c) eqn:Eq2. inversion H.
+    destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3. cbn. rewrite <- TranslateExpressionSound with (e := e).
+    rewrite <- app_assoc. rewrite Eq3. rewrite IHc. cbn. reflexivity. reflexivity.
+    apply H0. apply Eq1.
+    cbn. rewrite <- TranslateExpressionSound with (e:=e). rewrite Eq3. rewrite <- app_assoc. rewrite BadLetSound with (c := c).
+    reflexivity. apply Eq2. apply Eq1. discriminate. discriminate.
+  - inversion H0.
+  - inversion H0. inversion H.
+    destruct (CompileE e) eqn:Eq4; try discriminate.
+    destruct (CompileC c) eqn:Eq5; try discriminate. inversion H3. rewrite <- app_assoc.
+    destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq1;
+      destruct (C[| c|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3.
+    cbn. *)
+          
            
-Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (t: Trace)
+Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (v : option Trace) (t: Trace)
                                (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list (bool * nat)),
     CompileC c = Some l1 ->
     Csem c env (ExtMap_to_ExtEnv extM) = Some t ->
