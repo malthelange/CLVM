@@ -976,30 +976,45 @@ Proof.
     cbn. *)
           
            
-Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (v : option Trace) (t: Trace)
+Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap)
                                (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list (bool * nat)),
-    CompileC c = Some l1 ->
-    Csem c env (ExtMap_to_ExtEnv extM) = Some t ->
-    exists tm,
-    traceMtoTrace tm 0 = t /\ 
-    StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack = StackCInterp l2 ((Some tm)::stack) env (extM::extMs) w_stack .
+        CompileC c = Some l1 ->        
+        (forall (t: Trace), Csem c env (ExtMap_to_ExtEnv extM) = Some t ->
+         exists tm,
+           traceMtoTrace tm 0 = t /\ 
+           StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack 0 = StackCInterp l2 ((Some tm)::stack) env (extM::extMs) w_stack 0)
+        /\ (Csem c env (ExtMap_to_ExtEnv extM) = None ->
+           StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack 0 = StackCInterp l2 (None::stack) env (extM::extMs) w_stack 0).
+    
 Proof.
   intro. induction c; intros.
-  - exists (empty_traceM). split. inversion H0. unfold traceMtoTrace. cbn. repeat (apply functional_extensionality; intro).
+  - split; intros.
+    + exists (empty_traceM). split. inversion H0. unfold traceMtoTrace. cbn. repeat (apply functional_extensionality; intro).
     rewrite empty_TraceM_empty. reflexivity. inversion H. cbn. reflexivity.
-  - inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
-    inversion H2. inversion H0. cbn. rewrite <- TranslateExpressionSound with (e:=e). 
+    + inversion H0.
+  - split.
+    + intros. inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
+     inversion H2. inversion H0. cbn. rewrite <- TranslateExpressionSound with (e:=e). 
     destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3; try discriminate;
       destruct (C[| c|] (v :: env) (ExtMap_to_ExtEnv extM)) eqn:Eq4; try discriminate. rewrite <- app_assoc.
-    destruct (IHc (v::env) extM extMs t0 l0 ([CILetEnd] ++ l2) stack w_stack). reflexivity. apply Eq4.
-    destruct H1. rewrite H5. exists x. split.
-    + inversion H4. rewrite <- H7. apply H1.
-    + reflexivity.
-    + apply Eq1.
-  - inversion H. cbn. inversion H0. exists (singleton_traceM (singleton_transM p p0 a 1)).
-    split.
-    + apply SingleTraceEqual.
-    + reflexivity.
+    destruct (IHc (v::env) extM extMs  l0 ([CILetEnd] ++ l2) stack w_stack). reflexivity. 
+    destruct (H1 t0). apply Eq4. destruct H6. rewrite H7. exists x. split.
+      * inversion H4. rewrite <- H9. apply H6.
+      * reflexivity.
+      * apply Eq1.
+    + intro. inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate. inversion H2.
+      cbn. inversion H0. destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3.
+      rewrite <- TranslateExpressionSound with (e := e).
+      rewrite Eq3. rewrite <- app_assoc. destruct (IHc (v::env) extM extMs l0 ([CILetEnd] ++ l2) stack w_stack). reflexivity.
+      rewrite H5. cbn. reflexivity. apply H4. apply Eq1.
+      * rewrite <- TranslateExpressionSound with (e:=e). rewrite Eq3. rewrite <- app_assoc. apply BadLetSound with (c:=c). apply Eq2.
+      apply Eq1.
+  - split.
+    + inversion H. cbn. inversion H. exists (singleton_traceM (singleton_transM p p0 a 1)).
+      split.
+      * inversion H0. apply SingleTraceEqual.
+      * reflexivity.
+    + inversion H. intros.inversion H0.      
   - inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
     inversion H2. cbn. inversion H0.
     destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3.
