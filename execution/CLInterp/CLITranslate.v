@@ -1090,12 +1090,23 @@ Proof.
                    destruct (CompileC c2) eqn:Eq3; try discriminate.
     inversion H1.
     split; intros; inversion H0.
-    + destruct (stack_within_sem l n env extM false) eqn:Eq4.
+    + cbn. destruct (stack_within_sem l n env extM false) eqn:Eq4.
       destruct (p) eqn:Eq5. destruct b. apply WithinSound with (e := e) (c1 := c1) (c2 := c2) in Eq4.
-      rewrite Eq4 in H4. cbn in H4.
+      rewrite Eq4 in H4. cbn in H4. 
       destruct (C[| c2|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq6;
         destruct (C[| c1|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq7; try discriminate.
+      rewrite <- app_assoc. cbn in Eq4.
+      destruct (IHc2 env (adv_map (Z.of_nat (n - n0)) extM) extMs  l3 ((l0 ++ [CIIfEnd]) ++ l2) stack
+                     ((true, (n - n0)%nat) :: w_stack)). reflexivity.
+      clear H5. destruct (H3 t0). rewrite AdvanceMap1 in Eq6. apply Eq6. destruct H5. rewrite H6. clear H6. clear H3.
       rewrite <- app_assoc.
-      destruct (IHc1 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) t0 l3 ((l0 ++ [CIIfEnd]) ++ l2) stack
-             ((true, (n - n0)%nat) :: w_stack)).
+      destruct (IHc1 env (adv_map (Z.of_nat (n - n0)) extM) extMs l0 (( [CIIfEnd]) ++ l2) (Some x::stack)
+                     ((true, (n - n0)%nat) :: w_stack)). reflexivity.
+      clear H6. destruct (H3 t1). rewrite AdvanceMap1 in Eq7. apply Eq7. destruct H6. rewrite H7.
+      clear H7. cbn. exists (delay_traceM (n - n0) x0). split.
+      inversion H4. apply DelayEqual. apply H6. re
+      
+
+      
+      
 
