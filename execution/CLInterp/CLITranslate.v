@@ -829,11 +829,11 @@ Proof.
 Admitted.
 
 Lemma ScaleEqual:
-  forall (t0 : Trace) (z : Z) (x : TraceM),
-    traceMtoTrace x 0 = t0 ->
-    traceMtoTrace (scale_traceM z x) 0 = scale_trace z t0.
+  forall (z : Z) (x : TraceM),
+    traceMtoTrace (scale_traceM z x) 0 = scale_trace z (traceMtoTrace x 0).
 Proof.
-  intros t0 z x H1. Admitted.
+  intros z x. Admitted.
+        
 
 Lemma DelayEqual:
   forall (n : nat) (t0 : Trace) (x : TraceM),
@@ -1014,23 +1014,42 @@ Proof.
       split.
       * inversion H0. apply SingleTraceEqual.
       * reflexivity.
-    + inversion H. intros.inversion H0.      
-  - inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
-    inversion H2. cbn. inversion H0.
+    + inversion H. intros. inversion H0.
+  - split.
+    + intros. inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
+    inversion H2. inversion H0.
     destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3.
     destruct (C[| c|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4.
     unfold liftM2 in H4. unfold Monads.pure in H4. cbn in H4. destruct (toZ v) eqn:Eq5; try discriminate.
     rewrite <- app_assoc.
-    destruct (IHc env extM extMs t0 l0 ([CIScale l] ++ l2) stack w_stack). reflexivity. apply Eq4.
-    destruct H1. rewrite H5. cbn. rewrite <- TranslateExpressionSound with (e := e). rewrite Eq3.
-    cbn. unfold Monads.pure. rewrite Eq5. exists (scale_traceM z x).
-    split.
-    + inversion H4. apply ScaleEqual. apply H1.
-    + reflexivity.
-    + apply Eq1.
-    + cbn in H4. destruct (toZ v); discriminate.
-    + cbn in H4. discriminate.
-  - inversion H. destruct (CompileC c1) eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate.
+    destruct (IHc env extM extMs  l0 ([CIScale l] ++ l2) stack w_stack). reflexivity. destruct (H1 t0). apply Eq4.
+    destruct H6. rewrite H7. cbn. rewrite <- TranslateExpressionSound with (e:=e). rewrite Eq3. unfold Monads.pure.
+    rewrite Eq5. inversion H4. exists (scale_traceM z x). rewrite <- H6. split.
+      * apply ScaleEqual.
+      * reflexivity.
+      * apply Eq1.
+      * cbn in H4. destruct (toZ v); discriminate.
+      * inversion H0. rewrite Eq3 in H5. cbn in H5. discriminate.
+    + intro. inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
+      inversion H2. rewrite <- app_assoc. inversion H0.
+      destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3.
+      destruct (C[| c|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4.
+      cbn in H4. unfold toZ in H4. destruct v; try discriminate.
+      clear H4.
+      destruct (IHc env extM extMs  l0 ([CIScale l] ++ l2) stack w_stack). reflexivity.
+      destruct (H1 t). apply Eq4. destruct H5. rewrite H6. cbn. rewrite <- TranslateExpressionSound with (e:=e). rewrite Eq3.
+      cbn. reflexivity. apply Eq1.
+      * destruct (IHc env extM extMs  l0 ([CIScale l] ++ l2) stack w_stack). reflexivity.
+        rewrite H5. cbn. destruct (StackEInterp l [] env extM false); try reflexivity.
+        destruct (Monads.pure (toZ v0)); try reflexivity. destruct (o); try reflexivity. apply Eq4.
+      * destruct (C[| c|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4.
+        destruct (IHc env extM extMs  l0 ([CIScale l] ++ l2) stack w_stack). reflexivity.
+        destruct (H1 t). apply Eq4. destruct H6.
+        rewrite H7. cbn. rewrite <- TranslateExpressionSound with (e:=e). rewrite Eq3. reflexivity. apply Eq1.
+        destruct (IHc env extM extMs  l0 ([CIScale l] ++ l2) stack w_stack). reflexivity.
+        rewrite H5. cbn. destruct (StackEInterp l [] env extM false); try reflexivity.
+        destruct (Monads.pure (toZ v)); try reflexivity. destruct (o); try reflexivity. apply Eq4.
+  - inversion H. destruct (CompileC c1)  eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate.
     inversion H2. inversion H0.
     destruct (C[| c1|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3;
       destruct ((C[| c2|] env (ExtMap_to_ExtEnv extM))) eqn:Eq4; try discriminate. repeat (rewrite <- app_assoc). 
