@@ -413,7 +413,7 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)
                          | _ => None
                          end
     | CILet expis => do et <- hd_error exts;
-                     do v <- (StackEInterp expis [] env et false);
+                     do v <-  (StackEInterp expis [] env et false);
                      StackCInterp tl stack (v::env) exts w_stack
     | CILetEnd => StackCInterp tl stack (List.tl env) exts w_stack
     | CIIf expis n => match exts with | et::exts' =>
@@ -893,7 +893,6 @@ Proof.
   intros n i t. unfold delay_trace.
   repeat (apply functional_extensionality; intros). cbn. Admitted.
   
-  
 
 Lemma WithinSound : forall  (n i : nat) (expis: list instruction) (extM : ExtMap) (env: Env) (e : Exp) (c1 c2 : Contr),
     CompileE e = Some expis -> 
@@ -925,6 +924,16 @@ Proof.
        unfold Monads.pure. rewrite DelayTraceAux. rewrite ArithAux1. reflexivity.
        apply H2. reflexivity. apply H. apply H0.
 Qed.
+
+Lemma TranlateContractStepNone : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (t: Trace)
+                                   (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list (bool * nat)),
+    CompileC c = Some l1 ->
+    Csem c env (ExtMap_to_ExtEnv extM) = None ->
+    StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack = StackCInterp l2 (None::stack) env (extM::extMs) w_stack .
+Proof.
+  intro. induction c; intros.
+  - cbn in H0. discriminate.
+  - cbn in *. destruct (CompileE e); destruct (CompileC c). inversion H. cbn.
            
 Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (t: Trace)
                                (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list (bool * nat)),
@@ -985,5 +994,13 @@ Proof.
     + discriminate.
   - inversion H. destruct (CompileE e) eqn:Eq1; try discriminate; destruct (CompileC c1) eqn:Eq2; try discriminate;
                    destruct (CompileC c2) eqn:Eq3; try discriminate.
-    inversion H2. inversion H0. unfold within_sem in H4. cbn. unfold stack_within_sem.
+    inversion H2. inversion H0. cbn.
+    destruct (stack_within_sem l n env extM false) eqn:Eq4.
+    destruct (p) eqn:Eq5. destruct b. apply WithinSound with (e := e) (c1 := c1) (c2 := c2) in Eq4.
+    rewrite Eq4 in H4. cbn in H4.
+    destruct (C[| c2|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq6;
+    destruct (C[| c1|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq7; try discriminate.
+    rewrite <- app_assoc.
+    destruct (IHc1 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) t0 l3 ((l0 ++ [CIIfEnd]) ++ l2) stack
+             ((true, (n - n0)%nat) :: w_stack)).
 
