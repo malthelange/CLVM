@@ -1050,14 +1050,29 @@ Proof.
         rewrite H5. cbn. destruct (StackEInterp l [] env extM false); try reflexivity.
         destruct (Monads.pure (toZ v)); try reflexivity. destruct (o); try reflexivity. apply Eq4.
   - inversion H. destruct (CompileC c1)  eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate.
-    inversion H2. inversion H0.
+    inversion H1.
+    split; intros; inversion H0;
     destruct (C[| c1|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3;
-      destruct ((C[| c2|] env (ExtMap_to_ExtEnv extM))) eqn:Eq4; try discriminate. repeat (rewrite <- app_assoc). 
-    destruct (IHc2 env extM extMs t1 l0 (l ++ [CIBoth] ++ l2) stack w_stack); try reflexivity. apply Eq4. destruct H1.
-    rewrite H5.
-    destruct (IHc1 env extM extMs t0 l ([CIBoth] ++ l2) (Some x ::stack) w_stack); try reflexivity. apply Eq3. destruct H6.
-    rewrite H7. cbn. unfold Monads.pure. exists (add_traceM x0 x). split. cbn in H4. unfold Monads.pure in H4. inversion H4.
-    apply addTraceEqual. apply H6. apply H1. reflexivity.
+    destruct ((C[| c2|] env (ExtMap_to_ExtEnv extM))) eqn:Eq4; try discriminate; repeat (rewrite <- app_assoc).
+    + destruct (IHc2 env extM extMs l0 (l ++ [CIBoth] ++ l2) stack w_stack); try reflexivity.
+      destruct (H3 t1). apply Eq4. clear H3. clear H5. destruct H6. rewrite H5.
+      destruct (IHc1 env extM extMs l ([CIBoth] ++ l2) (Some x ::stack) w_stack); try reflexivity.
+      clear H7. destruct (H6 t0). apply Eq3. destruct H7.
+      rewrite H8. cbn. unfold Monads.pure. exists (add_traceM x0 x). split. cbn in H4. unfold Monads.pure in H4. inversion H4.
+      apply addTraceEqual. apply H7. apply H3. reflexivity.
+    + destruct (IHc2 env extM extMs l0 (l ++ [CIBoth] ++ l2) stack w_stack); try reflexivity. clear H3.
+      rewrite H5. clear H5.
+      destruct (IHc1 env extM extMs l ([CIBoth] ++ l2) (None ::stack) w_stack); try reflexivity. clear H5.
+      destruct (H3 t). apply Eq3. clear H3. destruct H5. rewrite H5. clear H3. clear H5.
+      cbn. reflexivity. apply Eq4.
+    + destruct (IHc2 env extM extMs l0 (l ++ [CIBoth] ++ l2) stack w_stack); try reflexivity. clear H5.
+      destruct (H3 t). apply Eq4. clear H3. destruct H5. rewrite H5. clear H5.
+      destruct (IHc1 env extM extMs l ([CIBoth] ++ l2) (Some x ::stack) w_stack); try reflexivity. clear H5.
+      rewrite H6. cbn. reflexivity. apply Eq3.
+    + destruct (IHc2 env extM extMs l0 (l ++ [CIBoth] ++ l2) stack w_stack); try reflexivity. clear H3.
+      rewrite H5. clear H5.
+      destruct (IHc1 env extM extMs l ([CIBoth] ++ l2) (None ::stack) w_stack); try reflexivity. clear H3.
+      rewrite H5. cbn. reflexivity. apply Eq3. apply Eq4.
   - inversion H. destruct (CompileC c) eqn:Eq1; try discriminate. inversion H2. cbn.
     inversion H0. cbn in H4.
     destruct (C[| c|] env (adv_ext (Z.of_nat n) (ExtMap_to_ExtEnv extM))) eqn:Eq2. unfold Monads.pure in H4. inversion H4.
