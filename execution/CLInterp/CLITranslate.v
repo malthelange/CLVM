@@ -444,10 +444,12 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)
                   | t1::t2::tl2 => match w_stack with
                                 | w::w_stack' => 
                                   let (branch, d_passed) := w in
-                                  do t1' <- t1;
-                                  do t2' <- t2;
-                                  let trace := delay_traceM d_passed (if branch then t1' else t2') in
-                                  StackCInterp tl ((Some trace)::tl2) env (List.tl exts) w_stack' O
+                                  match branch with
+                                  | true =>  do t1' <- t1; let trace := delay_traceM d_passed t1' in
+                                                         StackCInterp tl ((Some trace)::tl2) env (List.tl exts) w_stack' O
+                                  | false =>  do t2' <-t2; let trace := delay_traceM d_passed t2' in
+                                                         StackCInterp tl ((Some trace)::tl2) env (List.tl exts) w_stack' O
+                                  end
                                 | _ => None
                                 end
                   | _ => None
@@ -1101,13 +1103,19 @@ Proof.
       clear H5. destruct (H3 t0). rewrite AdvanceMap1 in Eq6. apply Eq6. destruct H5. rewrite H6. clear H6. clear H3.
       rewrite <- app_assoc.
       destruct (IHc1 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) l0 (( [CIIfEnd]) ++ l2) (Some x::stack)
-                     ((true, (n - n0)%nat) :: w_stack)). reflexivity.
+                     ((true, (n - n0)%nat) :: w_stack)). reflexivity. 
       clear H6. destruct (H3 t1). rewrite AdvanceMap1 in Eq7. apply Eq7. destruct H6. rewrite H7.
       clear H7. cbn. exists (delay_traceM (n - n0) x0). split.
       inversion H4. apply DelayEqual. apply H6. reflexivity.
-      *
-      
-
-      
-      
-
+      * rewrite <- app_assoc.
+        destruct (IHc2 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs)
+                       l3 ((l0 ++ [CIIfEnd]) ++ l2) stack ((true, (n - n0)%nat) :: w_stack)). reflexivity. clear H3.
+        rewrite H5. clear H5.
+        destruct (IHc1 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) l0 (( [CIIfEnd]) ++ l2) (None::stack)
+                       ((true, (n - n0)%nat) :: w_stack)). reflexivity. clear H5. destruct (H3 t0).
+        rewrite AdvanceMap1 in Eq7. apply Eq7. clear H3. destruct H5. rewrite <- app_assoc.
+        rewrite H5. cbn. exists (delay_traceM (n - n0) x). split. inversion H4. apply DelayEqual. apply H3.
+        reflexivity. rewrite <- AdvanceMap1. apply Eq6.
+      * apply Eq1.
+      * 
+        
