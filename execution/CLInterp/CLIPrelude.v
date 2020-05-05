@@ -206,6 +206,7 @@ Fixpoint translateVarToNat (v : Var) :=
 
 
 Definition Env := Env' Val.
+Definition EnvOp := Env' (option Val).
 
 Definition ExtEnv' A := ObsLabel -> Z -> A.
 
