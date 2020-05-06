@@ -591,30 +591,10 @@ Proof.
   rewrite AdvanceMapSound. reflexivity. apply x0.
 Qed.
 
-(*
-Lemma NoneInvariant : forall (l : list instruction) (env : Env) (ext: ExtMap) (stack1 stack2 : list (option Val)),
-    StackEInterp l stack1 env ext false = StackEInterp [] stack2 env ext false -> 
-    In None stack1 -> In None stack2.
-Proof.
-  intros. generalize dependent l. induction l.
-  - intros. inversion H. unfold In.
-
-Lemma NoNoneInvariant : forall (l : list instruction) (env : Env) (ext: ExtMap) (stack : list (option Val))
-  ,
-    StackEInterp l (None::stack) env ext false = None.
-Proof.
-  intros. 
-Qed.
- *)
-
 Lemma AdvanceMap2 : forall (ext : ExtMap),
     adv_map 0 ext = ext.
 Proof.
 Admitted.
-
-Lemma AdvanceMap3 : forall (ext: ExtMap) (z1 z2: Z),
-    (adv_map z1 (adv_map (z2) ext)) = (adv_map (z1 + z2) ext).
-Proof. Admitted.
 
 (*
 Lemma AccStepSound:
@@ -820,7 +800,8 @@ Definition CompileRunE (e : Exp) : option Val :=
   do ce <- CompileE e; vmE ce [] def_extM.
 
 
-Definition update_ext (l1 : ObsLabel) (i1 : Z) (vn : Val)  (e : ExtEnv) := (fun l i => if ((OLEq l l1) && (i =? i1))%bool then vn else e l i).
+Definition update_ext (l1 : ObsLabel) (i1 : Z) (vn : Val)  (e : ExtEnv) :=
+  (fun l i => if ((OLEq l l1) && (i =? i1))%bool then vn else e l i).
 
 Definition lookupTrace (t : option Trace) (n : nat) (p1 p2 : Party) (a: Asset) : option Z :=
   match t with 
@@ -848,7 +829,9 @@ Proof. Admitted.
 
 Lemma addTraceHelp: forall (tm1 tm2 : TraceM),
     traceMtoTrace (add_traceM tm1 tm2) 0 = add_trace (traceMtoTrace tm1 0) (traceMtoTrace tm2 0).
-  Admitted.
+Proof. intros. unfold traceMtoTrace.
+       unfold add_trace. repeat (apply functional_extensionality; intros).
+       unfold lookupTraceM. unfold add_trans. unfold add_traceM. unfold add_transM. Admitted.
 
 Lemma addTraceEqual:
       forall (t0 t1 : Trace) (tm1 tm2 : TraceM),
@@ -864,10 +847,13 @@ Lemma SingleTraceEqual:
     traceMtoTrace (singleton_traceM (singleton_transM p p0 a 1)) 0 =
     singleton_trace (singleton_trans p p0 a 1).
 Proof.
-  intros p p0 a. unfold traceMtoTrace. unfold singleton_trace. unfold singleton_trans. unfold lookupTraceM.
-  cbn. unfold singleton_traceM. unfold singleton_transM.
-  repeat (apply functional_extensionality; intro). cbn. destruct (x).
-Admitted.
+  intros. unfold singleton_traceM. unfold singleton_transM.
+  unfold singleton_trans. unfold traceMtoTrace. unfold singleton_trace.
+  repeat (apply functional_extensionality; intros). unfold lookupTraceM.
+  destruct x. destruct p. destruct p0. destruct (n =? n0)%nat.
+  assert (H: FMap.find 0%nat (FMap.add 0%nat FMap.empty empty_traceM) = Some FMap.empty).
+  apply FMap.find_add. rewrite H. cbn.
+  assert (H1: FMap.find x0 FMap.empty = None).
 
 Lemma ScaleEqual:
   forall (z : Z) (x : TraceM),
@@ -1044,18 +1030,6 @@ Proof.
     reflexivity.
 Qed.
 
-
-(*
-Lemma BranchAux : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs: list ExtMap) (l1 l2 : list CInstruction)
-                    (stack: list (option TraceM)) (w_stack : list nat) (t: TraceM) (w: nat),
-    CompileC c = Some l1 ->
-    StackCInterp (l1 ++ [CIIfEnd] ++ l2) ((Some t)::stack) env (extM::extMs) (w::w_stack) 1 =
-    StackCInterp l2 (Some (delay_traceM w t)::stack) env extMs w_stack 0.
-Proof. intro. induction c; intros.
-       - inversion H. reflexivity.
-       -  inversion H. destruct (CompileE e) eqn:Eq1. destruct (CompileC c) eqn:Eq2. inversion H1. cbn. rewrite <- app_assoc.
-          rewrite IHc. *)
-
 Lemma IfAux1:
   forall (c : Contr) (l0 : list CInstruction),
     CompileC c = Some l0 ->
@@ -1078,34 +1052,7 @@ Proof. intro. induction c; intros; inversion H; try reflexivity.
            destruct (CompileC c2); try discriminate. inversion H1. cbn.
          rewrite <- app_assoc. rewrite IHc2. cbn. rewrite <- app_assoc. rewrite IHc1. cbn. reflexivity.
          reflexivity. reflexivity.
-Qed.
-
-Lemma IfAux2:
-  forall  (c : Contr) (l0 : list CInstruction),
-    CompileC c = Some l0 ->
-    forall (env : Env) (extM1 extM2 : ExtMap) (extMs : list ExtMap)
-      (l2 : list CInstruction) (stack : list (option TraceM))
-      (w_stack : list nat) (w : nat) (x : TraceM),
-      StackCInterp (l0 ++ [CIIfEnd] ++ l2) (Some x :: stack) env
-                   (extM1 :: extM2 :: extMs)
-                   (w :: w_stack) 1 =
-      StackCInterp l2 (Some (delay_traceM w x) :: stack) env (extM2 :: extMs) w_stack 0.
-Proof.
-  intro. induction c; intros; inversion H; try reflexivity.
-  - destruct (CompileE e); destruct (CompileC c) eqn:Eq1; try discriminate. inversion H1. cbn. rewrite <- app_assoc.
-    rewrite IfAux1 with (c:=c). cbn. reflexivity. apply Eq1.
-  - destruct (CompileE e); destruct (CompileC c) eqn:Eq1; try discriminate. inversion H1.
-    rewrite <- app_assoc. rewrite (IfAux1 c). cbn. reflexivity. apply Eq1.
-  - destruct (CompileC c1) eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate. inversion H1.
-    rewrite <- app_assoc. rewrite (IfAux1 c2). rewrite <- app_assoc. rewrite (IfAux1 c1). cbn. reflexivity. apply Eq1.
-    apply Eq2.
-  - destruct (CompileC c) eqn:Eq1; try discriminate. inversion H1. cbn. rewrite <- app_assoc.
-    rewrite (IfAux1 c). cbn. reflexivity. apply Eq1.
-  - destruct (CompileE e); destruct (CompileC c1) eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate.
-    inversion H1. cbn. rewrite <- app_assoc. rewrite (IfAux1 c2). cbn. rewrite <- app_assoc.
-    rewrite (IfAux1 c1). cbn. reflexivity. apply Eq1. apply Eq2.
-Qed.
-        
+Qed.    
 
 Lemma TranslateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap)
                                (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list nat),
@@ -1262,7 +1209,8 @@ Proof.
       * apply WithinSoundRight with (e := e) (c1 := c1) (c2 := c2) in Eq4. cbn in Eq4.
         rewrite Eq4 in H4. destruct (C[| c2|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq6;
                              try discriminate. rewrite <- app_assoc.
-        destruct (IHc2 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) l3 ((CIThen :: l0 ++ [CIIfEnd]) ++ l2) stack ((n - n0)%nat :: w_stack)). reflexivity. rewrite H5. reflexivity. rewrite AdvanceMap1 in Eq6. apply Eq6. apply Eq1.
+        destruct (IHc2 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) l3 ((CIThen :: l0 ++ [CIIfEnd]) ++ l2) stack ((n - n0)%nat :: w_stack)).
+        reflexivity. rewrite H5. reflexivity. rewrite AdvanceMap1 in Eq6. apply Eq6. apply Eq1.
       * reflexivity.
 Qed.
 
@@ -1278,4 +1226,3 @@ Theorem TranslateContractSound : forall (c : Contr) (env : Env) (extM : ExtMap) 
     apply H3. cbn in H4. rewrite app_nil_r in H4. apply H4.
   - intros. cbn in H1. rewrite app_nil_r in H1. apply H1. apply H2.
 Qed.
-        
