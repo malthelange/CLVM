@@ -225,6 +225,7 @@ Inductive CInstruction :=
 | CILet : list instruction -> CInstruction
 | CILetEnd : CInstruction
 | CIIf : list instruction -> nat -> CInstruction
+| CIThen : CInstruction
 | CIIfEnd : CInstruction.
 
 (** Compilation of CL contracts to CLVM contracts *)
@@ -243,7 +244,7 @@ Fixpoint CompileC (c : Contr) : option (list CInstruction) :=
   | If e n c1 c2 => do es <- CompileE e;
                    do s1 <- CompileC c1;
                    do s2 <- CompileC c2;
-                   Some ([CIIf es n] ++ s2 ++ s1 ++ [CIIfEnd])
+                   Some ([CIIf es n] ++ s2 ++ [CIThen] ++ s1 ++ [CIIfEnd])
   | Let e c => do es <- CompileE e;
               do s <- CompileC c;
               Some ([CILet es] ++ s ++ [CILetEnd])
@@ -379,67 +380,119 @@ Fixpoint stack_within_sem  (expis : list instruction) (i : nat)  (env : Env) (rc
 
 
 (** Definition of semantics for CLVM, parameters are in reverse polish notation *)
-Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)) (env : Env) (exts: list ExtMap) (w_stack : list (bool * nat)) : option TraceM :=
+Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM))
+         (env : Env) (exts: list ExtMap) (w_stack : list nat) (bf : nat): option TraceM :=
   match instrs with
   | [] => match stack with [res] => res | _ => None end
   | hd::tl =>
-    match hd with
-    | CIZero => StackCInterp tl ((Some empty_traceM)::stack) env exts w_stack
-    | CITransfer p1 p2 c => StackCInterp tl ((Some (singleton_traceM (singleton_transM p1 p2 c 1)))::stack) env exts w_stack
-    | CIScale expis => match stack with
-                      | hd2::tl2 =>
+      match hd with
+      | CIZero => match bf with
+                 | O => StackCInterp tl ((Some empty_traceM)::stack) env exts w_stack bf
+                 | _ => StackCInterp tl stack env exts w_stack bf
+                 end
+      | CITransfer p1 p2 c => match bf with
+                             | O => StackCInterp tl ((Some (singleton_traceM (singleton_transM p1 p2 c 1)))::stack) env exts w_stack bf
+                             | _ => StackCInterp tl stack env exts w_stack bf
+                             end
+      | CIScale expis => match bf with
+                          | O => 
+                            match stack with
+                            | hd2::tl2 =>
+                              do hd2' <- hd2;
+                              do et <- hd_error exts;
+                              do v <- (StackEInterp expis [] env et false);
+                              do z <- toZ v;
+                              StackCInterp tl (Some(scale_traceM z hd2')::tl2) env exts w_stack bf
+                            | [] => None
+                            end
+                          | _ => StackCInterp tl stack env exts w_stack bf
+                        end
+      | CIBoth => match bf with
+                 | O =>
+                   match stack with
+                   | t1::t2::tl2 =>
+                     let trace := (liftM2 add_traceM t1 t2) in
+                     StackCInterp tl (trace::tl2) env exts w_stack bf
+                   | _ => None
+                   end
+                 | _ => StackCInterp tl stack env exts w_stack bf
+                 end
+      | CITranslate n => match bf with 
+                                 | O => 
+                                   do et <- hd_error exts;
+                                   let et' := (adv_map (Z.of_nat n) et) in
+                                   StackCInterp tl stack env (et'::exts) w_stack bf
+                                 | _ => StackCInterp tl stack env exts w_stack bf
+                        end
+      | CITranslateEnd n => match bf with
+                           | O =>
+                             match stack with
+                             |t::tl2 => match exts with
+                                      | et::exts' =>
+                                        match t with
+                                        | Some t' => let trace := (delay_traceM n t') in
+                                                    StackCInterp tl ((Some trace)::tl2) env exts' w_stack bf
+                                        | None => StackCInterp tl (None::tl2) env exts' w_stack bf
+                                        end
+                                      | p_ => None
+                                      end
+                             | _ => None
+                             end
+                           | _ => StackCInterp tl stack env exts w_stack bf
+                           end
+      | CILet expis => match bf with
+                      | O =>
                         do et <- hd_error exts;
-                        let trace :=
-                            (do z <- liftM toZ (StackEInterp expis [] env et false); liftM2 scale_traceM z hd2)
-                        in StackCInterp tl (trace::tl2) env exts w_stack
-                      | [] => None
+                        do v <-  (StackEInterp expis [] env et false);
+                        StackCInterp tl stack (v::env) exts w_stack bf
+                      | _ => StackCInterp tl stack env exts w_stack bf
                       end
-    | CIBoth => match stack with
-               | t1::t2::tl2 =>
-                 let trace := (liftM2 add_traceM t1 t2) in
-                 StackCInterp tl (trace::tl2) env exts w_stack
-               | _ => None end
-    | CITranslate n  => do et <- hd_error exts;
-                       let et' := (adv_map (Z.of_nat n) et) in
-                       StackCInterp tl stack env (et'::exts) w_stack
-    | CITranslateEnd n => match stack with
-                         |t::tl2 => match exts with
-                                  | et::exts' =>
-                                    do t' <- t;
-                                    let trace := (delay_traceM n t') in
-                                    StackCInterp tl ((Some trace)::tl2) env exts' w_stack
-                                  | p_ => None
-                                  end
-                         | _ => None
-                         end
-    | CILet expis => do et <- hd_error exts;
-                     do v <- (StackEInterp expis [] env et false);
-                     StackCInterp tl stack (v::env) exts w_stack
-    | CILetEnd => StackCInterp tl stack (List.tl env) exts w_stack
-    | CIIf expis n => match exts with | et::exts' =>
-                                       match stack_within_sem expis n env et false with
-                                       | Some (branch, d_left) => 
-                                         let d_passed := (n - d_left)%nat in
-                                         let et' := adv_map (Z.of_nat d_passed) et in
-                                         StackCInterp tl stack env (et'::exts') ((branch, d_passed)::w_stack)
-                                       | _ => None
-                                       end
-                                | _ => None
-                     end
-    | CIIfEnd => match stack with
-                | t1::t2::tl2 => match w_stack with
-                              | w::w_stack' => 
-                                let (branch, d_passed) := w in
-                                do t1' <- t1;
-                                do t2' <- t2;
-                                 let trace := delay_traceM d_passed (if branch then t1' else t2') in
-                                 StackCInterp tl ((Some trace)::tl2) env (List.tl exts) w_stack'
-                              | _ => None
-                              end
-                | _ => None
-                end
-                                 
-    end
+      | CILetEnd => match bf with
+                   | O => StackCInterp tl stack (List.tl env) exts w_stack bf
+                   | _ => StackCInterp tl stack env exts w_stack bf
+                   end
+      | CIIf expis n => match bf with
+                       | O => match exts with | et::exts' =>
+                                               match stack_within_sem expis n env et false with
+                                               | Some (branch, d_left) => 
+                                                 let d_passed := (n - d_left)%nat in
+                                                 let et' := adv_map (Z.of_nat d_passed) et in
+                                                 StackCInterp tl stack env (et'::exts) (d_passed::w_stack) (if branch then 1 else 0)
+                                               | _ => None
+                                               end
+                                        | _ => None
+                             end
+                       | bf' => StackCInterp tl stack env exts w_stack (S bf)
+                       end
+      | CIThen => match bf with
+                 | O => StackCInterp tl stack env exts w_stack 1
+                 | (S O) => StackCInterp tl stack env exts w_stack O
+                 | _ => StackCInterp tl stack env exts w_stack bf
+                 end
+      | CIIfEnd => match bf with
+                  | O => match stack with
+                        | t1::tl2 => match w_stack with
+                                      | w::w_stack' => 
+                                        let d_passed := w in
+                                        do t1' <- t1; let trace := delay_traceM d_passed t1' in
+                                                     StackCInterp tl ((Some trace)::tl2) env (List.tl exts) w_stack' O
+                                      | _ => None
+                                      end
+                        | _ => None
+                        end
+                  | (S O) => match stack with
+                        | t1::tl2 => match w_stack with
+                                   | w::w_stack' => 
+                                     let d_passed := w in
+                                     do t1' <- t1; let trace := delay_traceM d_passed t1' in
+                                                  StackCInterp tl ((Some trace)::tl2) env (List.tl exts) w_stack' O
+                                   | _ => None
+                                   end
+                        | _ => None
+                        end
+                  | (S bf') => StackCInterp tl stack env exts w_stack bf'
+                  end
+      end
   end.
 
 (** Partial evaluation CLVM, we assume expressions only evaluate to None when some required observable is not present. 
@@ -508,7 +561,7 @@ Fixpoint StackCPartial (instrs : list CInstruction) (stack : list (option TraceM
                     do v <- (StackEInterp expis [] env et false);
                     StackCPartial tl stack (v::env) exts w_stack
     | CILetEnd => StackCPartial tl stack (List.tl env) exts w_stack
-   
+    | CIThen => StackCPartial tl stack env exts w_stack 
     end
   end.
 
@@ -749,7 +802,7 @@ Proof.
 Admitted.
          
 Definition vmC (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
-  StackCInterp instrs [] env [ext] [].
+  StackCInterp instrs [] env [ext] [] O.
 
 
 Definition vmPartial (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
@@ -817,11 +870,11 @@ Proof.
 Admitted.
 
 Lemma ScaleEqual:
-  forall (t0 : Trace) (z : Z) (x : TraceM),
-    traceMtoTrace x 0 = t0 ->
-    traceMtoTrace (scale_traceM z x) 0 = scale_trace z t0.
+  forall (z : Z) (x : TraceM),
+    traceMtoTrace (scale_traceM z x) 0 = scale_trace z (traceMtoTrace x 0).
 Proof.
-  intros t0 z x H1. Admitted.
+  intros z x. Admitted.
+        
 
 Lemma DelayEqual:
   forall (n : nat) (t0 : Trace) (x : TraceM),
@@ -875,6 +928,19 @@ Proof.
     + fold stack_within_sem in H. apply IHn in H. omega.
 Qed.
 
+Lemma WithinSoundAux2 : forall (n i : nat) (expis: list instruction) (extM : ExtMap) (env: Env),
+    stack_within_sem expis n env extM false = Some (false, i) ->
+    (i = 0)%nat.
+Proof.
+  intro. induction n; intros. unfold stack_within_sem in H;
+            destruct (StackEInterp expis [] env extM false); try discriminate; destruct v;
+              try discriminate. destruct b. inversion H. inversion H. reflexivity.
+  - inversion H. destruct (StackEInterp expis [] env extM false) eqn:Eq1; try discriminate.
+    destruct v; try discriminate. destruct b.
+    + inversion H1.
+    + apply IHn with (expis := expis) (extM := (adv_map 1 extM)) (env := env). apply H1.
+Qed.
+
 Lemma ArithAux1:
   forall n i : nat, (i <= n)%nat -> (1 + (n - i))%nat = (S n - i)%nat.
 Proof.
@@ -892,7 +958,6 @@ Lemma DelayTraceAux:
 Proof.
   intros n i t. unfold delay_trace.
   repeat (apply functional_extensionality; intros). cbn. Admitted.
-  
   
 
 Lemma WithinSound : forall  (n i : nat) (expis: list instruction) (extM : ExtMap) (env: Env) (e : Exp) (c1 c2 : Contr),
@@ -925,65 +990,292 @@ Proof.
        unfold Monads.pure. rewrite DelayTraceAux. rewrite ArithAux1. reflexivity.
        apply H2. reflexivity. apply H. apply H0.
 Qed.
-           
-Lemma TranlateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap) (t: Trace)
-                               (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list (bool * nat)),
+
+Lemma StupidArith:
+  forall n : nat, (0 <= n)%nat.
+Proof.
+  intros n. induction n. reflexivity. cbn. omega.
+Qed.
+  
+Lemma WithinSoundRight : forall  (n i : nat) (expis: list instruction) (extM : ExtMap) (env: Env) (e : Exp) (c1 c2 : Contr),
+    CompileE e = Some expis -> 
+stack_within_sem expis n env extM false = Some (false, i) ->
+within_sem C[| c1|] C[| c2|] e n env (ExtMap_to_ExtEnv extM) =
+do v <- C[| c2|] env (adv_ext (Z.of_nat (n - i)) (ExtMap_to_ExtEnv extM));
+Some (delay_trace (n - i) v).
+Proof.
+  intro. induction n; intros.
+  - cbn in *.
+    destruct (StackEInterp expis [] env extM false) eqn:Eq1; try discriminate.
+    destruct v eqn:Eq2; try discriminate. destruct b eqn:Eq3; try discriminate. inversion H0.
+    rewrite <- TranslateExpressionSound with (e := e) in Eq1; auto. rewrite Eq1.
+    destruct (C[| c2|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4. unfold Z.of_nat. cbn. rewrite AdvanceExtNeutral.
+    rewrite Eq4. rewrite <-  DelayTraceNeutral. reflexivity. cbn. unfold Z.of_nat. rewrite AdvanceExtNeutral.
+    rewrite Eq4. reflexivity.    
+  - cbn in *. destruct (StackEInterp expis [] env extM false) eqn:Eq1; try discriminate.
+    destruct v eqn:E1; try discriminate. destruct b eqn:Eq3.
+    + inversion H0.
+    + rewrite <- TranslateExpressionSound with (e := e) in Eq1; auto. rewrite Eq1.
+       rewrite AdvanceMap1. rewrite IHn with (i := i) (expis := expis).
+       rewrite <- AdvanceMap1. rewrite AdvanceExt1. assert (H2: (i = 0)%nat).
+       apply WithinSoundAux2 with (n:=n) (expis := expis) (extM := adv_map 1 extM) (env := env). apply H0. rewrite H2.
+       rewrite ArithAux; try apply H2.
+       destruct (C[| c2|] env (adv_ext (Z.of_nat (S n - 0)) (ExtMap_to_ExtEnv extM))).
+       unfold Monads.pure. rewrite DelayTraceAux. rewrite ArithAux1. reflexivity.
+       apply StupidArith. reflexivity. apply StupidArith. apply H. apply H0.
+Qed.
+
+Lemma WithinSoundNone : forall  (n: nat) (expis: list instruction) (extM : ExtMap) (env: Env) (e : Exp) (c1 c2 : Contr),
+    CompileE e = Some expis -> 
+    stack_within_sem expis n env extM false = None ->
+    within_sem C[| c1|] C[| c2|] e n env (ExtMap_to_ExtEnv extM) = None.   
+Proof.
+  intro. induction n; intros.
+  - cbn in *. destruct (StackEInterp expis [] env extM false) eqn:Eq1. rewrite TranslateExpressionSound with (expis := expis).
+    rewrite Eq1. destruct (v) eqn:Eq2; try (destruct (b) eqn:Eq3; try discriminate). reflexivity. apply H.
+    rewrite TranslateExpressionSound with (expis := expis). rewrite Eq1. reflexivity.
+    apply H.
+  - cbn in *. destruct (StackEInterp expis [] env extM false) eqn:Eq1; rewrite TranslateExpressionSound with (expis := expis);  try apply H; rewrite Eq1.
+    destruct (C[| c1|] env (ExtMap_to_ExtEnv extM)) eqn:Eq2. destruct v; try reflexivity.
+    destruct b eqn:Eq3. discriminate. apply IHn with (e:=e) (c1 := c1) (c2 := c2) in H0. rewrite AdvanceMap1.
+    rewrite H0. reflexivity.
+    apply H. destruct (v); try reflexivity. destruct (b); try reflexivity.
+    apply IHn with (e:=e) (c1 := c1) (c2 := c2) in H0. rewrite AdvanceMap1. rewrite H0. reflexivity. apply H.
+    reflexivity.
+Qed.
+
+
+(*
+Lemma BranchAux : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs: list ExtMap) (l1 l2 : list CInstruction)
+                    (stack: list (option TraceM)) (w_stack : list nat) (t: TraceM) (w: nat),
     CompileC c = Some l1 ->
-    Csem c env (ExtMap_to_ExtEnv extM) = Some t ->
-    exists tm,
-    traceMtoTrace tm 0 = t /\ 
-    StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack = StackCInterp l2 ((Some tm)::stack) env (extM::extMs) w_stack .
+    StackCInterp (l1 ++ [CIIfEnd] ++ l2) ((Some t)::stack) env (extM::extMs) (w::w_stack) 1 =
+    StackCInterp l2 (Some (delay_traceM w t)::stack) env extMs w_stack 0.
+Proof. intro. induction c; intros.
+       - inversion H. reflexivity.
+       -  inversion H. destruct (CompileE e) eqn:Eq1. destruct (CompileC c) eqn:Eq2. inversion H1. cbn. rewrite <- app_assoc.
+          rewrite IHc. *)
+
+Lemma IfAux1:
+  forall (c : Contr) (l0 : list CInstruction),
+    CompileC c = Some l0 ->
+    forall (env : Env)  (extMs : list ExtMap) (bf: nat)
+      (l2 : list CInstruction) (stack : list (option TraceM))
+      (w_stack : list nat) ,
+      StackCInterp (l0 ++ l2) stack env extMs w_stack (S bf) =
+      StackCInterp l2 stack env extMs w_stack (S bf).
+Proof. intro. induction c; intros; inversion H; try reflexivity.
+       - destruct (CompileE e); destruct (CompileC c); try discriminate. inversion H1.
+         cbn. rewrite <- app_assoc. rewrite IHc. cbn. reflexivity. reflexivity.
+       - destruct (CompileE e); destruct (CompileC c); try discriminate. inversion H1.
+         rewrite <- app_assoc. rewrite IHc. cbn. reflexivity. reflexivity.
+       - destruct (CompileC c1); destruct (CompileC c2); try discriminate. inversion H1.
+         rewrite <- app_assoc. rewrite IHc2; try reflexivity.
+         rewrite <- app_assoc. rewrite IHc1; try reflexivity.
+       - destruct (CompileC c); try discriminate. inversion H1. cbn.
+         rewrite <- app_assoc. rewrite IHc; try reflexivity.
+       - destruct (CompileE e); destruct (CompileC c1);
+           destruct (CompileC c2); try discriminate. inversion H1. cbn.
+         rewrite <- app_assoc. rewrite IHc2. cbn. rewrite <- app_assoc. rewrite IHc1. cbn. reflexivity.
+         reflexivity. reflexivity.
+Qed.
+
+Lemma IfAux2:
+  forall  (c : Contr) (l0 : list CInstruction),
+    CompileC c = Some l0 ->
+    forall (env : Env) (extM1 extM2 : ExtMap) (extMs : list ExtMap)
+      (l2 : list CInstruction) (stack : list (option TraceM))
+      (w_stack : list nat) (w : nat) (x : TraceM),
+      StackCInterp (l0 ++ [CIIfEnd] ++ l2) (Some x :: stack) env
+                   (extM1 :: extM2 :: extMs)
+                   (w :: w_stack) 1 =
+      StackCInterp l2 (Some (delay_traceM w x) :: stack) env (extM2 :: extMs) w_stack 0.
+Proof.
+  intro. induction c; intros; inversion H; try reflexivity.
+  - destruct (CompileE e); destruct (CompileC c) eqn:Eq1; try discriminate. inversion H1. cbn. rewrite <- app_assoc.
+    rewrite IfAux1 with (c:=c). cbn. reflexivity. apply Eq1.
+  - destruct (CompileE e); destruct (CompileC c) eqn:Eq1; try discriminate. inversion H1.
+    rewrite <- app_assoc. rewrite (IfAux1 c). cbn. reflexivity. apply Eq1.
+  - destruct (CompileC c1) eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate. inversion H1.
+    rewrite <- app_assoc. rewrite (IfAux1 c2). rewrite <- app_assoc. rewrite (IfAux1 c1). cbn. reflexivity. apply Eq1.
+    apply Eq2.
+  - destruct (CompileC c) eqn:Eq1; try discriminate. inversion H1. cbn. rewrite <- app_assoc.
+    rewrite (IfAux1 c). cbn. reflexivity. apply Eq1.
+  - destruct (CompileE e); destruct (CompileC c1) eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate.
+    inversion H1. cbn. rewrite <- app_assoc. rewrite (IfAux1 c2). cbn. rewrite <- app_assoc.
+    rewrite (IfAux1 c1). cbn. reflexivity. apply Eq1. apply Eq2.
+Qed.
+        
+
+Lemma TranslateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap)
+                               (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list nat),
+        CompileC c = Some l1 ->        
+        (forall (t: Trace), Csem c env (ExtMap_to_ExtEnv extM) = Some t ->
+         exists tm,
+           traceMtoTrace tm 0 = t /\ 
+           StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack O = StackCInterp l2 ((Some tm)::stack) env (extM::extMs) w_stack O)
+        /\ (Csem c env (ExtMap_to_ExtEnv extM) = None ->
+           StackCInterp (l1 ++ l2) stack env (extM::extMs) w_stack O = None).
+
 Proof.
   intro. induction c; intros.
-  - exists (empty_traceM). split. inversion H0. unfold traceMtoTrace. cbn. repeat (apply functional_extensionality; intro).
+  - split; intros.
+    + exists (empty_traceM). split. inversion H0. unfold traceMtoTrace. cbn. repeat (apply functional_extensionality; intro).
     rewrite empty_TraceM_empty. reflexivity. inversion H. cbn. reflexivity.
-  - inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
-    inversion H2. inversion H0. cbn. rewrite <- TranslateExpressionSound with (e:=e). 
-    destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3; try discriminate;
-      destruct (C[| c|] (v :: env) (ExtMap_to_ExtEnv extM)) eqn:Eq4; try discriminate. rewrite <- app_assoc.
-    destruct (IHc (v::env) extM extMs t0 l0 ([CILetEnd] ++ l2) stack w_stack). reflexivity. apply Eq4.
-    destruct H1. rewrite H5. exists x. split.
-    + inversion H4. rewrite <- H7. apply H1.
-    + reflexivity.
-    + apply Eq1.
-  - inversion H. cbn. inversion H0. exists (singleton_traceM (singleton_transM p p0 a 1)).
-    split.
-    + apply SingleTraceEqual.
-    + reflexivity.
-  - inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
-    inversion H2. cbn. inversion H0.
+    + inversion H0.
+  - split. 
+    + intros. inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
+      inversion H2. inversion H0. cbn.  rewrite <- TranslateExpressionSound with (e:=e). 
+      destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3; try discriminate;
+        destruct (C[| c|] (v :: env) (ExtMap_to_ExtEnv extM)) eqn:Eq4; try discriminate. rewrite <- app_assoc.
+      destruct (IHc (v::env) extM extMs  l0 ([CILetEnd] ++ l2) stack w_stack). reflexivity. 
+      destruct (H1 t0). apply Eq4. destruct H6. rewrite H7. exists x. split.
+      * inversion H4. rewrite <- H9. apply H6.
+      * cbn. reflexivity.
+      * apply Eq1.
+    + intro. inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate. inversion H2.
+      cbn. inversion H0. destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3.
+      rewrite <- TranslateExpressionSound with (e := e).
+      rewrite Eq3. rewrite <- app_assoc. destruct (IHc (v::env) extM extMs l0 ([CILetEnd] ++ l2) stack w_stack). reflexivity.
+      rewrite H5. cbn. reflexivity. apply H4. apply Eq1.
+      * rewrite <- TranslateExpressionSound with (e:=e).
+        rewrite Eq3. reflexivity. apply Eq1.
+  - split.
+    + inversion H. cbn. inversion H. exists (singleton_traceM (singleton_transM p p0 a 1)).
+      split.
+      * inversion H0. apply SingleTraceEqual.
+      * reflexivity.
+    + inversion H. intros. inversion H0.
+  - split.
+    + intros. inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
+    inversion H2. inversion H0.
     destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3.
     destruct (C[| c|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4.
     unfold liftM2 in H4. unfold Monads.pure in H4. cbn in H4. destruct (toZ v) eqn:Eq5; try discriminate.
     rewrite <- app_assoc.
-    destruct (IHc env extM extMs t0 l0 ([CIScale l] ++ l2) stack w_stack). reflexivity. apply Eq4.
-    destruct H1. rewrite H5. cbn. rewrite <- TranslateExpressionSound with (e := e). rewrite Eq3.
-    cbn. unfold Monads.pure. rewrite Eq5. exists (scale_traceM z x).
-    split.
-    + inversion H4. apply ScaleEqual. apply H1.
-    + reflexivity.
-    + apply Eq1.
-    + cbn in H4. destruct (toZ v); discriminate.
-    + cbn in H4. discriminate.
-  - inversion H. destruct (CompileC c1) eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate.
-    inversion H2. inversion H0.
+    destruct (IHc env extM extMs  l0 ([CIScale l] ++ l2) stack w_stack). reflexivity. destruct (H1 t0). apply Eq4.
+    destruct H6. rewrite H7. cbn. rewrite <- TranslateExpressionSound with (e:=e). rewrite Eq3. unfold Monads.pure.
+    rewrite Eq5. inversion H4. exists (scale_traceM z x). rewrite <- H6. split.
+      * apply ScaleEqual.
+      * reflexivity.
+      * apply Eq1.
+      * cbn in H4. destruct (toZ v); discriminate.
+      * inversion H0. rewrite Eq3 in H5. cbn in H5. discriminate.
+    + intro. inversion H. destruct (CompileE e) eqn:Eq1; destruct (CompileC c) eqn:Eq2; try discriminate.
+      inversion H2. rewrite <- app_assoc. inversion H0.
+      destruct (E[| e|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3. 
+      destruct (C[| c|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4. 
+      cbn in H4. unfold toZ in H4; destruct v; try discriminate.
+      clear H4.
+      destruct (IHc env extM extMs  l0 ([CIScale l] ++ l2) stack w_stack). reflexivity.
+      destruct (H1 t). apply Eq4. destruct H5. rewrite H6. cbn. rewrite <- TranslateExpressionSound with (e:=e). rewrite Eq3.
+      cbn. reflexivity. apply Eq1.
+      * destruct (IHc env extM extMs  l0 ([CIScale l] ++ l2) stack w_stack). reflexivity.
+        rewrite H5. reflexivity. apply Eq4. 
+      * destruct (C[| c|] env (ExtMap_to_ExtEnv extM)) eqn:Eq4.
+        destruct (IHc env extM extMs  l0 ([CIScale l] ++ l2) stack w_stack). reflexivity.
+        destruct (H1 t). apply Eq4. destruct H6.
+        rewrite H7. cbn. rewrite <- TranslateExpressionSound with (e:=e). rewrite Eq3. reflexivity. apply Eq1.
+        destruct (IHc env extM extMs  l0 ([CIScale l] ++ l2) stack w_stack). reflexivity.
+        rewrite H5. cbn. reflexivity. apply Eq4.    
+  - inversion H. destruct (CompileC c1)  eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate.
+    inversion H1.
+    split; intros; inversion H0;
     destruct (C[| c1|] env (ExtMap_to_ExtEnv extM)) eqn:Eq3;
-      destruct ((C[| c2|] env (ExtMap_to_ExtEnv extM))) eqn:Eq4; try discriminate. repeat (rewrite <- app_assoc). 
-    destruct (IHc2 env extM extMs t1 l0 (l ++ [CIBoth] ++ l2) stack w_stack); try reflexivity. apply Eq4. destruct H1.
-    rewrite H5.
-    destruct (IHc1 env extM extMs t0 l ([CIBoth] ++ l2) (Some x ::stack) w_stack); try reflexivity. apply Eq3. destruct H6.
-    rewrite H7. cbn. unfold Monads.pure. exists (add_traceM x0 x). split. cbn in H4. unfold Monads.pure in H4. inversion H4.
-    apply addTraceEqual. apply H6. apply H1. reflexivity.
-  - inversion H. destruct (CompileC c) eqn:Eq1; try discriminate. inversion H2. cbn.
-    inversion H0. cbn in H4.
-    destruct (C[| c|] env (adv_ext (Z.of_nat n) (ExtMap_to_ExtEnv extM))) eqn:Eq2. unfold Monads.pure in H4. inversion H4.
-    rewrite <- app_assoc.
-    destruct (IHc env (adv_map (Z.of_nat n) extM) (extM::extMs) t0 l ( [CITranslateEnd n] ++ l2) stack w_stack). reflexivity.
-    rewrite AdvanceMap1 in Eq2. apply Eq2. destruct H1. rewrite H6. cbn. exists (delay_traceM n x). split.
-    apply DelayEqual. apply H1.
-    + reflexivity.
-    + discriminate.
+    destruct ((C[| c2|] env (ExtMap_to_ExtEnv extM))) eqn:Eq4; try discriminate; repeat (rewrite <- app_assoc).
+    + destruct (IHc2 env extM extMs l0 (l ++ [CIBoth] ++ l2) stack w_stack); try reflexivity.
+      destruct (H3 t1). apply Eq4. clear H3. clear H5. destruct H6. rewrite H5.
+      destruct (IHc1 env extM extMs l ([CIBoth] ++ l2) (Some x ::stack) w_stack); try reflexivity.
+      clear H7. destruct (H6 t0). apply Eq3. destruct H7.
+      rewrite H8. cbn. unfold Monads.pure. exists (add_traceM x0 x). split. cbn in H4. unfold Monads.pure in H4. inversion H4.
+      apply addTraceEqual. apply H7. apply H3. reflexivity.
+    + destruct (IHc2 env extM extMs l0 (l ++ [CIBoth] ++ l2) stack w_stack); try reflexivity. clear H3.
+      rewrite H5. clear H5.
+      destruct (IHc1 env extM extMs l ([CIBoth] ++ l2) (None ::stack) w_stack); try reflexivity. clear H5. apply Eq4.
+    + destruct (IHc2 env extM extMs l0 (l ++ [CIBoth] ++ l2) stack w_stack); try reflexivity. clear H5.
+      destruct (H3 t). apply Eq4. clear H3. destruct H5. rewrite H5. clear H5.
+      destruct (IHc1 env extM extMs l ([CIBoth] ++ l2) (Some x ::stack) w_stack); try reflexivity. clear H5.
+      rewrite H6. cbn. reflexivity. apply Eq3.
+    + destruct (IHc2 env extM extMs l0 (l ++ [CIBoth] ++ l2) stack w_stack); try reflexivity. clear H3.
+      rewrite H5. reflexivity. apply Eq4.
+  - inversion H. destruct (CompileC c) eqn:Eq1; try discriminate. inversion H1.
+    split; intros; inversion H0; cbn in H4;
+      destruct (C[| c|] env (adv_ext (Z.of_nat n) (ExtMap_to_ExtEnv extM))) eqn:Eq2; unfold Monads.pure in H4; inversion H4;
+        cbn; rewrite <- app_assoc.
+    + destruct (IHc env (adv_map (Z.of_nat n) extM) (extM::extMs)  l ( [CITranslateEnd n] ++ l2) stack w_stack). reflexivity.
+      clear H6. destruct (H3 t0). rewrite AdvanceMap1 in Eq2. apply Eq2. destruct H6. rewrite H7. cbn.
+      exists (delay_traceM n x). split.
+      apply DelayEqual. apply H6.
+      * reflexivity.
+    + destruct (IHc env (adv_map (Z.of_nat n) extM) (extM::extMs)  l ( [CITranslateEnd n] ++ l2) stack w_stack). reflexivity.
+      clear H3. rewrite H5. cbn. reflexivity. rewrite AdvanceMap1 in Eq2. apply Eq2.
   - inversion H. destruct (CompileE e) eqn:Eq1; try discriminate; destruct (CompileC c1) eqn:Eq2; try discriminate;
                    destruct (CompileC c2) eqn:Eq3; try discriminate.
-    inversion H2. inversion H0. unfold within_sem in H4. cbn. unfold stack_within_sem.
+    inversion H1.
+    split; intros; inversion H0.
+    + cbn. destruct (stack_within_sem l n env extM false) eqn:Eq4.
+      destruct (p) eqn:Eq5. destruct b. apply WithinSound with (e := e) (c1 := c1) (c2 := c2) in Eq4.
+      rewrite Eq4 in H4. cbn in H4.   
+      destruct (C[| c2|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq6;
+        destruct (C[| c1|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq7; try discriminate.
+      rewrite <- app_assoc. cbn in Eq4. rewrite (IfAux1 c2). cbn.
+      destruct (IHc1 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) l0 ([CIIfEnd] ++ l2) stack
+                     (((n - n0)%nat) :: w_stack)). reflexivity.
+      clear H5. destruct (H3 t1). rewrite AdvanceMap1 in Eq7. apply Eq7. destruct H5.
+      rewrite <- app_assoc.
+      rewrite H6. clear H6. clear H3. cbn.
+      exists (delay_traceM (n - n0) x). split.
+      inversion H4. rewrite <- H5. apply DelayEqual. reflexivity. reflexivity. apply Eq3.
+      * rewrite <- app_assoc. rewrite (IfAux1 c2). cbn.
+        destruct (IHc1 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) l0 ([CIIfEnd] ++ l2) stack
+                       (((n - n0)%nat) :: w_stack)). reflexivity. clear H5.
+        destruct (H3 t0). rewrite AdvanceMap1 in Eq7. apply Eq7. destruct H5.
+        rewrite <- app_assoc.
+        rewrite H6. clear H6. clear H3. cbn. exists (delay_traceM (n - n0) x). split.
+        inversion H4. rewrite <- H5. apply DelayEqual. reflexivity. reflexivity. apply Eq3.
+      * apply Eq1.
+      * apply WithinSoundRight with (e:=e) (c1 := c1) (c2 := c2) in Eq4. rewrite Eq4 in H4.
+        cbn in H4. destruct (C[| c2|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq6;
+                     destruct (C[| c1|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq7; try discriminate.
+        rewrite <- app_assoc. cbn in Eq4.
+        destruct (IHc2 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs)  l3 ((CIThen :: l0 ++ [CIIfEnd]) ++ l2) stack
+                       ( (n - n0)%nat :: w_stack)). reflexivity. clear H5. destruct (H3 t0).
+        rewrite AdvanceMap1 in Eq6. apply Eq6. destruct H5. rewrite H6. cbn. rewrite <- app_assoc. clear H6 H3.
+        rewrite (IfAux1 c1). cbn.  inversion H4.
+        exists (delay_traceM (n - n0) x). split. apply DelayEqual. apply H5. reflexivity. apply Eq2.        
+        destruct (IHc2 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs)  l3 ((CIThen :: l0 ++ [CIIfEnd]) ++ l2) stack
+                       ( (n - n0)%nat :: w_stack)). reflexivity. clear H5. destruct (H3 t0).
+        rewrite AdvanceMap1 in Eq6. apply Eq6. destruct H5. rewrite <- app_assoc. rewrite H6. cbn.
+        rewrite <- app_assoc. clear H6 H3.
+        rewrite (IfAux1 c1).
+         inversion H4. exists (delay_traceM (n - n0) x). split.
+         apply DelayEqual. apply H5. reflexivity. rewrite AdvanceMap1 in Eq7. apply Eq2. apply Eq1. 
+      * apply WithinSoundNone with (e:=e) (c1:=c1) (c2:=c2) in Eq4.  rewrite H4 in Eq4. discriminate. apply Eq1.
+    + cbn. destruct (stack_within_sem l n env extM false) eqn:Eq4.
+      destruct (p) eqn:Eq5. destruct b.
+      * apply WithinSound with (e := e) (c1 := c1) (c2 := c2) in Eq4. cbn in Eq4.
+      rewrite Eq4 in H4. destruct (C[| c1|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq6; try discriminate.
+      rewrite <- app_assoc. rewrite (IfAux1 c2). cbn.  rewrite <- app_assoc.
+      destruct (IHc1 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) l0 ([CIIfEnd] ++ l2) stack ((n - n0)%nat :: w_stack)).
+      reflexivity.
+      clear H3. rewrite H5. reflexivity. rewrite AdvanceMap1 in Eq6. apply Eq6. apply Eq3. apply Eq1.
+      * apply WithinSoundRight with (e := e) (c1 := c1) (c2 := c2) in Eq4. cbn in Eq4.
+        rewrite Eq4 in H4. destruct (C[| c2|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq6;
+                             try discriminate. rewrite <- app_assoc.
+        destruct (IHc2 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) l3 ((CIThen :: l0 ++ [CIIfEnd]) ++ l2) stack ((n - n0)%nat :: w_stack)). reflexivity. rewrite H5. reflexivity. rewrite AdvanceMap1 in Eq6. apply Eq6. apply Eq1.
+      * reflexivity.
+Qed.
 
+Theorem TranslateContractSound : forall (c : Contr) (env : Env) (extM : ExtMap) (l : list CInstruction),
+    CompileC c = Some l ->
+    (forall (t : Trace), Csem c env (ExtMap_to_ExtEnv extM) = Some t ->
+                    exists tm, traceMtoTrace tm 0 = t /\
+                          vmC l env extM = Some tm)
+    /\ (Csem c env (ExtMap_to_ExtEnv extM) = None -> vmC l env extM = None).
+  intros. destruct (TranslateContractStep c env extM [] l [] [] []). apply H. split.
+  - intros. 
+    destruct (H0 t). apply H2. destruct H3. exists x. split.
+    apply H3. cbn in H4. rewrite app_nil_r in H4. apply H4.
+  - intros. cbn in H1. rewrite app_nil_r in H1. apply H1. apply H2.
+Qed.
+        
