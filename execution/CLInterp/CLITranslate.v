@@ -767,19 +767,21 @@ Proof. intro. induction e using Exp_ind'; intros.
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
     CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = StackEInterp expis [] env extM false.
 Proof.
-  intros. unfold vmE. rewrite (app_nil_end expis).
+  intros. unfold vmE. 
   destruct (Esem e env (ExtMap_to_ExtEnv extM)) eqn:Eq.
-  rewrite TranlateExpressionStep with (e := e) (expis := (expis ++ [])) (v := v).
-  reflexivity.
-  + reflexivity.
-  + apply H.
-  + apply Eq.
-  + destruct e.
-    * admit.
-    * inversion H. cbn in *. unfold ExtMap_to_ExtEnv in Eq. unfold find_default. destruct (FMap.find (l,i)); discriminate.
-    * inversion H. cbn in *.  rewrite <- lookupTranslateSound. symmetry. apply Eq.
-    * inversion H. admit.
-Admitted.
+  - rewrite (app_nil_end expis). rewrite TranlateExpressionStep with (e := e) (expis := (expis ++ [])) (v := v). 
+    reflexivity. reflexivity. apply H. apply Eq.
+  -  generalize dependent env.
+    generalize dependent extM.
+    generalize dependent expis. 
+    induction e using Exp_ind'; intros.
+     + destruct op.
+       * inversion H0. destruct args. inversion H2. destruct args. inversion H2. destruct args; try discriminate.
+         destruct (CompileE e0) eqn:Eq1; destruct (CompileE e) eqn:Eq2; try discriminate.
+         inversion H2. inversion Eq.
+         destruct (E[| e|] env (ExtMap_to_ExtEnv extM)).
+         destruct (E[| e0|] env (ExtMap_to_ExtEnv extM)). cbn in H4.
+   
          
 Definition vmC (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
   StackCInterp instrs [] env [ext] [] O.
