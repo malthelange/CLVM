@@ -853,7 +853,8 @@ Proof.
   destruct x. destruct p. destruct p0. destruct (n =? n0)%nat.
   assert (H: FMap.find 0%nat (FMap.add 0%nat FMap.empty empty_traceM) = Some FMap.empty).
   apply FMap.find_add. rewrite H. cbn.
-  assert (H1: FMap.find x0 FMap.empty = None).
+  assert (H1: FMap.find x0 (FMap.empty : FMap Party (FMap Party (FMap Asset nat))) = None).
+  apply FMap.find_empty. rewrite H1.
 
 Lemma ScaleEqual:
   forall (z : Z) (x : TraceM),
