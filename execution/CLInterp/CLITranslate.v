@@ -9,7 +9,7 @@ Require Import Blockchain.
 Require Import Extras.
 Require Import Containers.
 Require Export Equalities.
-Require Export Utils. 
+(*Require Export Utils. *)
 
 Require Import Serializable.
 From RecordUpdate Require Import RecordUpdate.

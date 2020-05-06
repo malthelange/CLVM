@@ -27,6 +27,8 @@ theories/Finite.v
 theories/LocalBlockchain.v
 theories/Monads.v
 theories/Serializable.v
+
+-I CLInterp
 CLInterp/CLIPrelude.v
 CLInterp/CLIUtils.v
 CLInterp/CLITranslate.v

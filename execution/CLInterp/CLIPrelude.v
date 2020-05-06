@@ -4,9 +4,9 @@ Import ListNotations.
 From Coq Require Import ZArith.
 Require Import Basics.
 Require Import Automation.
-Require Import Monads.
-Require Import Blockchain.
-Require Import Extras.
+Require Import Monads. 
+Require Import Blockchain. 
+Require Import Extras. 
 Require Import Containers.
 Require Import Sorting.Permutation.
 Require Import Coq.Init.Datatypes.
