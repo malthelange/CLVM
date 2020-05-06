@@ -632,7 +632,7 @@ Proof.
   - cbn in *.
 *)
 
-Lemma TranlateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
+Lemma TranslateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)) (v : Val),
     expis = l0 ++ l1 ->
     CompileE e = Some l0 ->
@@ -764,23 +764,48 @@ Proof. intro. induction e using Exp_ind'; intros.
              rewrite IHe2 with (expis := (l ++ (IAccStart2  :: l2 ++ [] ++ [IAccEnd]) ++ l1)) (v := v0); try reflexivity.
              cbn in *. Admitted.
 
+Lemma TranlateExpressionNone : forall (e : Exp) (env : Env)  (l0 l1 : list instruction)
+                                 (ext : ExtMap)  (stack : list (option Val)),
+    CompileE e = Some l0 ->
+    Esem e env (ExtMap_to_ExtEnv ext) = None -> 
+    StackEInterp (l0 ++ l1) stack env ext false = None.
+Proof.
+  induction e using Exp_ind'; intros.
+  - destruct op; inversion H0; destruct args; inversion H3;
+      try (destruct args); try discriminate; try destruct args; try discriminate;
+        cbn in *; try (destruct (CompileE e0) eqn:Eq1); try (destruct (CompileE e) eqn:Eq2); try discriminate;
+          inversion H3;
+          try (apply all_apply'' in H; destruct H);
+          try (apply all_apply'' in H2; destruct H2).
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Add]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Add] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity.
+      rewrite <- app_assoc. rewrite H2. reflexivity. apply Eq1. apply Eq4. rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Add]) ++ l1)) (v:=v); auto.
+      rewrite <- app_assoc. reflexivity.
+      rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + 
+    
+
+    
+
+
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
     CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = StackEInterp expis [] env extM false.
 Proof.
   intros. unfold vmE. 
   destruct (Esem e env (ExtMap_to_ExtEnv extM)) eqn:Eq.
-  - rewrite (app_nil_end expis). rewrite TranlateExpressionStep with (e := e) (expis := (expis ++ [])) (v := v). 
+  - rewrite (app_nil_end expis). rewrite TranslateExpressionStep with (e := e) (expis := (expis ++ [])) (v := v). 
     reflexivity. reflexivity. apply H. apply Eq.
   -  generalize dependent env.
     generalize dependent extM.
     generalize dependent expis. 
-    induction e using Exp_ind'; intros.
-     + destruct op.
-       * inversion H0. destruct args. inversion H2. destruct args. inversion H2. destruct args; try discriminate.
-         destruct (CompileE e0) eqn:Eq1; destruct (CompileE e) eqn:Eq2; try discriminate.
-         inversion H2. inversion Eq.
-         destruct (E[| e|] env (ExtMap_to_ExtEnv extM)).
-         destruct (E[| e0|] env (ExtMap_to_ExtEnv extM)). cbn in H4.
+    
+
    
          
 Definition vmC (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
