@@ -788,10 +788,87 @@ Proof.
       rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Add]) ++ l1)) (v:=v); auto.
       rewrite <- app_assoc. reflexivity.
       rewrite H2. reflexivity. apply Eq1. apply Eq4.
-    + 
-    
-
-    
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Sub]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Sub] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Sub]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Mult]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Mult] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Mult]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Div]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Div] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Div]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp And]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp And] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp And]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Or]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Or] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Or]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Less]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Less] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Less]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Leq]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Leq] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Leq]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Equal]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Equal] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Equal]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3; cbn in *. destruct v; try discriminate.
+      rewrite <- app_assoc. rewrite TranslateExpressionStep with (e:=e) (expis:= (l ++ [IOp Not] ++ l1)) (v:=(ZVal z)).
+      cbn. reflexivity. reflexivity. apply Eq2. apply Eq3. rewrite <- app_assoc. rewrite H. reflexivity.
+      apply Eq2. apply Eq3.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3; cbn in *. destruct v; try discriminate.
+      rewrite <- app_assoc. rewrite TranslateExpressionStep with (e:=e) (expis:= (l ++ [IOp Neg] ++ l1)) (v:=(BVal b)).
+      cbn. reflexivity. reflexivity. apply Eq2. apply Eq3. rewrite <- app_assoc. rewrite H. reflexivity.
+      apply Eq2. apply Eq3.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3. 
 
 
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
