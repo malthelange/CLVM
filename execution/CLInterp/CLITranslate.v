@@ -178,8 +178,8 @@ Fixpoint repeat_app {A} (x : list A) (n: nat ) :=
 Fixpoint CompileE (e : Exp) : option (list instruction) :=
   match e with
   | OpE op args => match op with
-                  | BLit b => Some [IPushB b]
-                  | ZLit z => Some [IPushZ z]
+                  | BLit b => match args with | [] => Some [IPushB b] | _ => None end
+                  | ZLit z => match args with | [] => Some [IPushZ z] | _ => None end
                   | Neg => match args with
                           | [exp1] =>
                             do s1 <- CompileE exp1;
@@ -694,31 +694,7 @@ Proof. intro. induction e using Exp_ind'; intros.
            rewrite H with (expis := (l ++ [IOp Neg] ++ l1)) (v := (ZVal z)); try reflexivity.
            rewrite <- H2. reflexivity. apply Eq1. apply Eq3.
          + rewrite H2. reflexivity.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + rewrite H2. reflexivity.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
+         + inversion H2. reflexivity.
          + destruct (CompileE e1) eqn:Eq6; try discriminate; destruct (sequence
                  (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
                       args)). destruct args; try discriminate.
@@ -869,6 +845,9 @@ Proof.
       cbn. reflexivity. reflexivity. apply Eq2. apply Eq3. rewrite <- app_assoc. rewrite H. reflexivity.
       apply Eq2. apply Eq3.
     + 
+    + admit.
+    + admit.
+    + admit.
 
 
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
