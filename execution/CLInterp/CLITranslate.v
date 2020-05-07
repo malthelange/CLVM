@@ -868,7 +868,7 @@ Proof.
       rewrite <- app_assoc. rewrite TranslateExpressionStep with (e:=e) (expis:= (l ++ [IOp Neg] ++ l1)) (v:=(BVal b)).
       cbn. reflexivity. reflexivity. apply Eq2. apply Eq3. rewrite <- app_assoc. rewrite H. reflexivity.
       apply Eq2. apply Eq3.
-    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3. 
+    + 
 
 
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
