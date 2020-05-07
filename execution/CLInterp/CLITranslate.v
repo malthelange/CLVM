@@ -359,7 +359,7 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (option Val)) (e
                        | _ => None end
                | _ => None 
                end
-    | IVar n => StackEInterp tl ((StackLookupEnv n env)::stack) env ext partial
+    | IVar n => do v <- (StackLookupEnv n env); StackEInterp tl ((Some v)::stack) env ext partial
     | IAccStart1 z => StackEInterp tl stack env (adv_map (-z) ext) partial
     | IAccStart2 => match stack with (Some v)::tl2 => StackEInterp tl tl2 (v::env) (adv_map 1 ext) partial | _ => None end
     | IAccStep => match stack with (Some v)::tl2 => let env' := List.tl env in
@@ -721,7 +721,7 @@ Proof. intro. induction e using Exp_ind'; intros.
          + destruct args; discriminate.
        - inversion H0. inversion H1. cbn. unfold ExtMap_to_ExtEnv. unfold find_default.
          reflexivity.
-       - inversion H0. inversion H1. cbn in *. rewrite <- lookupTranslateSound. reflexivity.
+       - inversion H0. inversion H1. cbn in *. rewrite <- lookupTranslateSound. rewrite H4. reflexivity.
        - destruct  d. cbn in *.
          + destruct (CompileE e2) eqn:Eq2; try discriminate. inversion H0.
            cbn in *.
@@ -844,10 +844,34 @@ Proof.
       rewrite <- app_assoc. rewrite TranslateExpressionStep with (e:=e) (expis:= (l ++ [IOp Neg] ++ l1)) (v:=(BVal b)).
       cbn. reflexivity. reflexivity. apply Eq2. apply Eq3. rewrite <- app_assoc. rewrite H. reflexivity.
       apply Eq2. apply Eq3.
-    + 
-    + admit.
-    + admit.
-    + admit.
+    + destruct args; try discriminate.  try (apply all_apply'' in H6; destruct H6).
+      destruct (CompileE e1) eqn:Eq3; try discriminate. inversion H3. cbn.
+      destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq5;
+        destruct (E[| e1|] env (ExtMap_to_ExtEnv ext)) eqn:Eq6; cbn in H1; rewrite <- app_assoc.
+      * rewrite TranslateExpressionStep with (e:=e1) (expis := l3 ++ (l ++ l2 ++ [IOp Cond]) ++ l1) (v:=v1); auto.
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := l ++ (l2 ++ [IOp Cond]) ++ l1) (v:=v0); auto.
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Cond] ++ l1) (v:=v); auto. cbn.
+      try destruct v;  try destruct v0; try destruct v1; try discriminate; try reflexivity.
+      * rewrite H6; auto.
+      * rewrite TranslateExpressionStep with (e:=e1) (expis := l3 ++ (l ++ l2 ++ [IOp Cond]) ++ l1) (v:=v0); auto.
+        rewrite <- app_assoc. rewrite H2. reflexivity. apply Eq1. apply Eq5.
+      * rewrite H6; auto.
+      * rewrite TranslateExpressionStep with (e:=e1) (expis := l3 ++ (l ++ l2 ++ [IOp Cond]) ++ l1) (v:=v0); auto.
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := l ++ (l2 ++ [IOp Cond]) ++ l1) (v:=v); auto.
+      rewrite <- app_assoc.
+      rewrite H. reflexivity. apply Eq2. apply Eq4.
+      * rewrite H6; auto.
+      * rewrite TranslateExpressionStep with (e:=e1) (expis := l3 ++ (l ++ l2 ++ [IOp Cond]) ++ l1) (v:=v); auto.
+        rewrite <- app_assoc. rewrite H2. reflexivity. apply Eq1. apply Eq5.
+      * rewrite H6; auto.
+    + destruct args; discriminate.
+    + destruct args; discriminate.
+    + destruct args; discriminate.
+  - inversion H0.
+  - inversion H0. inversion H. cbn. rewrite <- lookupTranslateSound. rewrite H2. cbn.
 
 
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
