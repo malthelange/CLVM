@@ -740,7 +740,7 @@ Proof. intro. induction e using Exp_ind'; intros.
              rewrite IHe2 with (expis := (l ++ (IAccStart2  :: l2 ++ [] ++ [IAccEnd]) ++ l1)) (v := v0); try reflexivity.
              cbn in *. Admitted.
 
-Lemma TranlateExpressionNone : forall (e : Exp) (env : Env)  (l0 l1 : list instruction)
+Lemma TranslateExpressionNone : forall (e : Exp) (env : Env)  (l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)),
     CompileE e = Some l0 ->
     Esem e env (ExtMap_to_ExtEnv ext) = None -> 
@@ -871,7 +871,13 @@ Proof.
     + destruct args; discriminate.
     + destruct args; discriminate.
   - inversion H0.
-  - inversion H0. inversion H. cbn. rewrite <- lookupTranslateSound. rewrite H2. cbn.
+  - inversion H0. inversion H. cbn. rewrite <- lookupTranslateSound. rewrite H2.  reflexivity.
+  - cbn in H0. inversion H. destruct d eqn:Eqd.
+    + destruct (CompileE e2) eqn:Eq1. inversion H2. cbn.
+      cbn in H0. rewrite IHe2. reflexivity. reflexivity. rewrite AdvanceMap1 in H0. apply H0. discriminate.
+    + destruct (CompileE e2) eqn:Eq1; destruct (CompileE e1) eqn:Eq2; try discriminate. inversion H2.
+      cbn. clear H2. cbn in H0. Admitted.
+
 
 
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
@@ -881,10 +887,8 @@ Proof.
   destruct (Esem e env (ExtMap_to_ExtEnv extM)) eqn:Eq.
   - rewrite (app_nil_end expis). rewrite TranslateExpressionStep with (e := e) (expis := (expis ++ [])) (v := v). 
     reflexivity. reflexivity. apply H. apply Eq.
-  -  generalize dependent env.
-    generalize dependent extM.
-    generalize dependent expis. 
-    
+  - rewrite (app_nil_end expis). rewrite TranslateExpressionNone with (e := e). reflexivity. apply H. apply Eq.
+Qed.
 
    
          
