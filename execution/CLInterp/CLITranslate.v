@@ -732,13 +732,12 @@ Proof. intro. induction e using Exp_ind'; intros.
            * rewrite AdvanceMap1 in Eq3. apply Eq3.
            * discriminate.
          + inversion H0. destruct (CompileE e2) eqn:Eq2; try discriminate. destruct (CompileE e1) eqn:Eq1; try discriminate.
-           inversion H3. clear H3. cbn. cbn in H1. clear H0. repeat (rewrite <- app_assoc).
-             
+           inversion H3. clear H3. cbn. cbn in H1. clear H0. repeat (rewrite <- app_assoc). cbn in *.
            induction d. 
            * cbn in *. repeat (rewrite <-  app_assoc). 
              destruct (E[| e2|] env (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext))) eqn:Eq4; try discriminate.
              rewrite IHe2 with (expis := (l ++ (IAccStart2  :: l2 ++ [] ++ [IAccEnd]) ++ l1)) (v := v0); try reflexivity.
-             cbn in *. Admitted.
+             cbn in *.
 
 Lemma TranslateExpressionNone : forall (e : Exp) (env : Env)  (l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)),
