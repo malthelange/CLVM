@@ -9,6 +9,7 @@ Require Import Blockchain.
 Require Import Extras.
 Require Import Containers.
 Require Export Equalities.
+Import Lia.
 (*Require Export Utils. *)
 
 Require Import Serializable.
@@ -1051,7 +1052,13 @@ Qed.
 Lemma ArithAux:
   forall n i : nat, (i <= n)%nat -> Z.of_nat (n - i) + 1 = Z.of_nat (S n - i).
 Proof.
-  intros n i H2. Admitted.
+  intros n i H2.
+  assert (H: Z.of_nat (n - i) + 1 = Z.of_nat (1 + (n - i))%nat).
+  cbn. induction ((n - i)%nat).
+  - reflexivity.
+  - lia.
+  - rewrite H. rewrite ArithAux1. reflexivity. apply H2.
+Qed.
 
 Lemma DelayTraceAux:
   forall (n i : nat) (t : Trace),
