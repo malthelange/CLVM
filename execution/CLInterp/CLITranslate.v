@@ -737,7 +737,7 @@ Proof. intro. induction e using Exp_ind'; intros.
            * cbn in *. repeat (rewrite <-  app_assoc). 
              destruct (E[| e2|] env (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext))) eqn:Eq4; try discriminate.
              rewrite IHe2 with (expis := (l ++ (IAccStart2  :: l2 ++ [] ++ [IAccEnd]) ++ l1)) (v := v0); try reflexivity.
-             cbn in *.
+             cbn in *. Admitted.
 
 Lemma TranslateExpressionNone : forall (e : Exp) (env : Env)  (l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)),
@@ -964,7 +964,7 @@ Proof.
   assert (H: FMap.find 0%nat (FMap.add 0%nat FMap.empty empty_traceM) = Some FMap.empty).
   apply FMap.find_add. rewrite H. cbn.
   assert (H1: FMap.find x0 (FMap.empty : FMap Party (FMap Party (FMap Asset nat))) = None).
-  apply FMap.find_empty. rewrite H1.
+  apply FMap.find_empty. Admitted.
 
 Lemma ScaleEqual:
   forall (z : Z) (x : TraceM),
@@ -1041,9 +1041,13 @@ Qed.
 Lemma ArithAux1:
   forall n i : nat, (i <= n)%nat -> (1 + (n - i))%nat = (S n - i)%nat.
 Proof.
-  intros n i H2. Admitted.
-  
-
+  intros n i H2. destruct i; destruct n.
+  - cbn. reflexivity.
+  - cbn. reflexivity.
+  - apply Nat.nle_succ_0 in H2. contradiction.
+  - cbn. omega.
+Qed.
+    
 Lemma ArithAux:
   forall n i : nat, (i <= n)%nat -> Z.of_nat (n - i) + 1 = Z.of_nat (S n - i).
 Proof.
