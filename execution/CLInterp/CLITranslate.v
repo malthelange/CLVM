@@ -649,10 +649,13 @@ Lemma AccSound : forall (ds: nat) (* >= 2 Hvor mange Acc skridt vi har i alt (vi
 
                  stack (v1 :: env) (adv_map (- Z.of_nat (ds - dc)) ext) false =
     StackEInterp  l1 ((Some vs) :: stack) env ext false.
-Proof. intro. induction ds; intros; cbn in *.
-       - assert (H4: (dc = 0)%nat) by lia. rewrite H4 in *. cbn in *.
+Proof. intro. induction ds; intros.
+       - cbn in *. assert (H4: (dc = 0)%nat) by lia. rewrite H4 in *. cbn in *.
          destruct (E[| e2|] env ext'); try discriminate. rewrite H2 in H3. 
          rewrite H1 in H3. rewrite AdvanceExt1 in H3. replace (Z.of_nat 2 + - Z.of_nat 2) with 0 in H3 by lia.
+         rewrite AdvanceExt2 in H3. replace (- Z.of_nat 0) with 0 by lia. rewrite AdvanceMap2.
+         rewrite H0 with (expis := (l2 ++ IAccEnd :: l1))  (v:=vs); auto.
+       - cbn in *. assert (Harith: (S ds - dc)%nat = (S (ds - dc)%nat)).
          
 
 
