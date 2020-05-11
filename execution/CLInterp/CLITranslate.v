@@ -653,12 +653,28 @@ Lemma AccSound : forall (lefti: nat)
     Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext)) lasti (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some v1 ->
     Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext)) (lasti + lefti) (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some vs  ->
     StackEInterp (repeat_app (l2 ++ [IAccStep]) lefti ++ l2 ++ IAccEnd :: l1)
-                 stack (v1 :: env) ext false =
-    StackEInterp  (l2 ++ IAccEnd :: l1) stack (vs :: env) (adv_map (Z.of_nat lefti) ext) false.
+                 stack (v1 :: env) (adv_map (Z.of_nat (S lasti)) ext) false =
+    StackEInterp  (l2 ++ IAccEnd :: l1) stack (vs :: env) (adv_map (Z.of_nat (lefti + (S lasti))) ext) false.
 Proof. intro. induction lefti; intros.
-       - cbn. replace (lasti + 0)%nat with lasti in H1 by lia. rewrite H0 in H1. inversion H1. admit.
+       - cbn. replace (lasti + 0)%nat with lasti in H1 by lia. rewrite H0 in H1. inversion H1. reflexivity.
        - cbn. repeat rewrite <- app_assoc.
-         replace (lasti + S lefti)%nat with (S lasti + lefti)%nat in H1 by lia. cbn in *.
+         replace (lasti + S lefti)%nat with (S lasti + lefti)%nat in H1 by lia.
+         destruct (AccSemAux lefti (S lasti) e1 e2 env (ExtMap_to_ExtEnv ext) vs). apply H1.
+         inversion H2.
+         cbn in H4. rewrite H0 in H4. 
+         rewrite H with (expis := (l2 ++ [IAccStep] ++ repeat_app (l2 ++ [IAccStep]) lefti ++ l2 ++ IAccEnd :: l1)) (v:=x).
+         cbn. repeat rewrite AdvanceMap3.
+         replace (1 + Z.of_nat (S lasti)) with (Z.of_nat (S (S lasti))) by lia.
+         replace (Z.of_nat (S (lefti + S lasti))) with ((Z.of_nat (S lefti + S lasti))) by lia.
+         rewrite IHlefti with (vs:=vs) (e1 := e1) (e2 := e2).
+         + replace (S lefti + S lasti)%nat with (lefti + S (S lasti))%nat by lia. reflexivity.
+         + apply H.
+         + apply H2.
+         + apply H1.
+         + reflexivity.
+         + reflexivity.
+         + rewrite AdvanceMap1 in H4. apply H4.
+Qed.
 
          (** TODO:
              Prove that Acc_sem for (S lasti) must yield a result.
