@@ -499,42 +499,9 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)
 (** Partial evaluation CLVM, we assume expressions only evaluate to None when some required observable is not present. 
     Meaning we assume all expressions are well-formed. Whenever an expression returns None we just evaluate to a Empty trace.*)
   
-Lemma Arith3:
-  forall ds dc : nat, 0%nat = (ds - dc)%nat -> (dc <= ds)%nat -> ds = dc.
-Proof.
-  intros ds dc H0 H1. lia. Qed.
-  
 
-
-Lemma AccSound : forall (ds: nat) (* >= 2 Hvor mange Acc skridt vi har i alt (vi 0-indeksere)*)
-                   (dc: nat) (* >= 2 Hvilket Acc skridt vi er nået til *)
-                   (dc':nat) (*dc' = dc - 1 Hvor mange Acc skridt vi har taget*)
-                   (dd : nat) (* ds - dc hvor mange Acc skridt der er tilbage "ds - dc + 1", men vi korrigere med det
-                                 sidste l2 og trækker en fra = ds - dc *)
-                   (ext : ExtMap) (ext' : ExtEnv) (v1 vs: Val) (env: Env) (stack : list (option Val)) (l1 l2 : list instruction)
-                   (e1 e2: Exp) 
-  ,
-    dc' = (dc - 1)%nat ->
-    dd = (ds - dc)%nat ->
-    (dc <= ds)%nat ->
-    (forall (env : Env) (expis l0 l1 : list instruction) 
-      (ext : ExtMap) (stack : list (option Val)) 
-       (v : Val),
-        expis = l0 ++ l1 ->
-        Some l2 = Some l0 ->
-        E[| e1|] env (ExtMap_to_ExtEnv ext) = Some v ->
-        StackEInterp (l0 ++ l1) stack env ext false =
-        StackEInterp l1 (Some v :: stack) env ext false)  -> 
-    ext' = adv_ext (- Z.of_nat (S (S ds))) (ExtMap_to_ExtEnv ext) ->
-
-    Acc_sem (Fsem E[|e1 |] env ext') dc' (E[|e2|] env ext') = Some v1 ->
-    Acc_sem (Fsem E[|e1 |] env ext') ds  (E[|e2|] env ext') = Some vs  ->
-    StackEInterp (repeat_app (l2 ++ [IAccStep]) dd ++ l2 ++ IAccEnd :: l1)
-                 stack (v1 :: env) (adv_map (- Z.of_nat ((S (S ds)) - dc)) ext) false =
-    StackEInterp  l1 ((Some vs) :: stack) env ext false.
-Proof. intros ds dc dc' dd. 
-       induction ds. intros; cbn in *.
-       - 
+       
+       
       
        
 Fixpoint StackCPartial (instrs : list CInstruction) (stack : list (option TraceM)) (env : Env) (exts: list ExtMap) (w_stack : list (option (bool * nat))) : option TraceM :=
@@ -645,6 +612,48 @@ Proof.
   intros. repeat (apply functional_extensionality; intros). unfold adv_ext.
   replace (z1 + (z2 + x0)) with (z2 + z1 + x0) by lia. reflexivity.
 Qed.
+
+Lemma AdvanceExt2 : forall (ext : ExtEnv),
+    adv_ext 0 ext = ext.
+Proof.
+  intros. repeat (apply functional_extensionality; intros). unfold adv_ext.
+  replace (0 + x0) with x0 by lia. reflexivity.
+Qed.
+
+
+Lemma Arith3:
+  forall ds dc : nat, 0%nat = (ds - dc)%nat -> (dc <= ds)%nat -> ds = dc.
+Proof.
+  intros ds dc H0 H1. lia. Qed.
+  
+
+
+Lemma AccSound : forall (ds: nat) (* >= 2 Hvor mange Acc skridt vi har i alt (vi 0-indeksere)*)
+                   (dc: nat) (* >= 2 Hvilket Acc skridt vi er nået til *)
+                   (ext : ExtMap) (ext' : ExtEnv) (v1 vs: Val) (env: Env) (stack : list (option Val)) (l1 l2 : list instruction)
+                   (e1 e2: Exp) 
+  ,
+    (dc <= ds)%nat ->
+    (forall (env : Env) (expis l0 l1 : list instruction) 
+      (ext : ExtMap) (stack : list (option Val)) 
+       (v : Val),
+        expis = l0 ++ l1 ->
+        Some l2 = Some l0 ->
+        E[| e1|] env (ExtMap_to_ExtEnv ext) = Some v ->
+        StackEInterp (l0 ++ l1) stack env ext false =
+        StackEInterp l1 (Some v :: stack) env ext false)  -> 
+    ext' = adv_ext (- Z.of_nat (S (S ds))) (ExtMap_to_ExtEnv ext) ->
+    Acc_sem (Fsem E[|e1 |] env ext') (S(dc))%nat (E[|e2|] env ext') = Some v1 ->
+    Acc_sem (Fsem E[|e1 |] env ext') (S (S (ds))) (E[|e2|] env ext') = Some vs  ->
+    StackEInterp (repeat_app (l2 ++ [IAccStep]) ((ds - dc)%nat) ++ l2 ++ IAccEnd :: l1)
+
+                 stack (v1 :: env) (adv_map (- Z.of_nat (ds - dc)) ext) false =
+    StackEInterp  l1 ((Some vs) :: stack) env ext false.
+Proof. intro. induction ds; intros; cbn in *.
+       - assert (H4: (dc = 0)%nat) by lia. rewrite H4 in *. cbn in *.
+         destruct (E[| e2|] env ext'); try discriminate. rewrite H2 in H3. 
+         rewrite H1 in H3. rewrite AdvanceExt1 in H3. replace (Z.of_nat 2 + - Z.of_nat 2) with 0 in H3 by lia.
+         
 
 
 Lemma TranslateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
