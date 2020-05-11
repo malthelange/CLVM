@@ -625,7 +625,53 @@ Lemma Arith3:
   forall ds dc : nat, 0%nat = (ds - dc)%nat -> (dc <= ds)%nat -> ds = dc.
 Proof.
   intros ds dc H0 H1. lia. Qed.
-  
+
+Lemma AccSemAux : forall  (d2 d1: nat) (e1 e2 : Exp) (env: Env) (ext: ExtEnv) (v : Val) ,
+    Acc_sem (Fsem E[| e1|] env ext)  (d1 + d2) (E[| e2|] env ext) = Some v ->
+    (exists v2,
+    Acc_sem (Fsem E[| e1|] env ext)  (d1) (E[| e2|] env ext) = Some v2).
+Proof. intro. induction d2; intros.
+       - exists v. replace (d1 + 0 )%nat with d1 in H by lia. apply H.
+       - replace (d1 + S d2)%nat with (S(d1 + d2))%nat in H by lia. cbn in *.
+         destruct (Acc_sem (Fsem E[| e1|] env ext) (d1 + d2) (E[| e2|] env ext)) eqn:Eq; try discriminate.
+         destruct (IHd2 d1 e1 e2 env ext v0). apply Eq. exists x. apply H0.
+Qed.    
+
+Lemma AccSound : forall (lefti: nat)
+                   (lasti: nat)
+                   (ext : ExtMap) (v1 vs: Val) (env: Env) (stack : list (option Val)) (l1 l2 : list instruction)
+                   (e1 e2: Exp) 
+  ,
+    (forall (env : Env) (expis l0 l1 : list instruction) 
+      (ext : ExtMap) (stack : list (option Val)) 
+       (v : Val),
+        expis = l0 ++ l1 ->
+        Some l2 = Some l0 ->
+        E[| e1|] env (ExtMap_to_ExtEnv ext) = Some v ->
+        StackEInterp (l0 ++ l1) stack env ext false =
+        StackEInterp l1 (Some v :: stack) env ext false)  -> 
+    Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext)) lasti (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some v1 ->
+    Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext)) (lasti + lefti) (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some vs  ->
+    StackEInterp (repeat_app (l2 ++ [IAccStep]) lefti ++ l2 ++ IAccEnd :: l1)
+                 stack (v1 :: env) ext false =
+    StackEInterp  (l2 ++ IAccEnd :: l1) stack (vs :: env) (adv_map (Z.of_nat lefti) ext) false.
+Proof. intro. induction lefti; intros.
+       - cbn. replace (lasti + 0)%nat with lasti in H1 by lia. rewrite H0 in H1. inversion H1. admit.
+       - cbn. repeat rewrite <- app_assoc.
+         replace (lasti + S lefti)%nat with (S lasti + lefti)%nat in H1 by lia. cbn in *.
+
+         (** TODO:
+             Prove that Acc_sem for (S lasti) must yield a result.
+                   - We should be able to prove this from the fact that Acc_sem (S lefti + lasti) yields a result.
+                   
+             From that prove that the next instruction must yield a result.
+             That result must be equal to Acc_sem for (S lasti). 
+             Once that is done we should be done by the induction hypothesis.
+          *)
+         
+         
+           
+       
 
 
 Lemma AccSound : forall (ds: nat) (* >= 2 Hvor mange Acc skridt vi har i alt (vi 0-indeksere)*)
@@ -655,7 +701,7 @@ Proof. intro. induction ds; intros.
          rewrite H1 in H3. rewrite AdvanceExt1 in H3. replace (Z.of_nat 2 + - Z.of_nat 2) with 0 in H3 by lia.
          rewrite AdvanceExt2 in H3. replace (- Z.of_nat 0) with 0 by lia. rewrite AdvanceMap2.
          rewrite H0 with (expis := (l2 ++ IAccEnd :: l1))  (v:=vs); auto.
-       - cbn in *. assert (Harith: (S ds - dc)%nat = (S (ds - dc)%nat)).
+       - cbn in *. assert (Harith: (S ds - dc)%nat = (S (ds - dc)%nat)) by lia.
          
 
 
