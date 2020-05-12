@@ -801,15 +801,31 @@ Proof. intro. induction e using Exp_ind'; intros.
              replace (2 + d)%nat with ((1 + d) + 1)%nat in H6 by lia. apply AccSemAux in H6. destruct H6.
              replace (adv_map (- Z.of_nat d) ext) with (adv_map (Z.of_nat (S 1)) ext').
              rewrite AccSound with (vs:=x) (e1:=e1) (e2:=e2).
-             cbn in H1.
-             
-
-             (** TODO:
-                 Prove that Acc_sem (2 + d) has a value from Esem.
-                 From that prove that Acc_sem (1 + d) has a value.
-                 Use the AccSound lemma to prove the instructions yield Acc_sem (1 + d) as the top of environment.
-                 From here prove that the last steps yield Acc_sem (2 + d) as top of stack.
-              *)
+             cbn in H1. cbn in H0. rewrite EqExt' in H0. repeat rewrite <- AdvanceMap1 in H0. rewrite H0 in H1.
+             rewrite AdvanceExt1 in H1. replace (Z.of_nat (S (S d)) + - Z.of_nat (S (S d))) with 0 in H1 by lia.
+             rewrite AdvanceExt2 in H1. rewrite EqExt'. rewrite AdvanceMap3.
+             replace (Z.of_nat (d + 2) + - Z.of_nat (S (S d))) with 0 by lia. rewrite AdvanceMap2.
+             rewrite IHe1 with (expis := (l2 ++ IAccEnd :: l1)) (v:=v); auto.
+             apply IHe1. apply H5. apply H0. rewrite EqExt'. rewrite AdvanceMap3.
+             replace (Z.of_nat 2 + - Z.of_nat (S (S d))) with (- Z.of_nat d) by lia. reflexivity.
+             reflexivity. reflexivity. rewrite <- AdvanceMap1. apply EqE1.
+             remember (adv_map (- Z.of_nat (S (S d))) ext) as ext' eqn:EqExt'.
+             assert (H6: Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) (2 + d) (E[|e2|] env (ExtMap_to_ExtEnv ext')) = Some v).
+             cbn. cbn in H1. rewrite EqExt'. repeat rewrite <- AdvanceMap1. apply H1.
+             replace (2 + d)%nat with (1 + (d + 1))%nat in H6 by lia. apply AccSemAux in H6. destruct H6.
+             cbn in H0. rewrite EqExt' in H0. repeat rewrite <-  AdvanceMap1 in H0. rewrite EqE2 in H0.
+             rewrite AdvanceExt1 in H0. replace (Z.of_nat 1 + - Z.of_nat (S (S d))) with ((- Z.of_nat (S d))) in H0 by lia.
+             rewrite EqE1 in H0. discriminate.
+           * reflexivity.
+           * reflexivity.
+           * rewrite AdvanceMap1 in EqE2. apply EqE2.
+           * remember (adv_map (- Z.of_nat (S d)) ext) as ext' eqn:EqExt'.
+             assert (H6: Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) (1 + d) (E[|e2|] env (ExtMap_to_ExtEnv ext')) = Some v).
+             cbn. cbn in H1. rewrite EqExt'. repeat rewrite <- AdvanceMap1. apply H1.
+             replace (1 + d)%nat with (0 + (d + 1))%nat in H6 by lia. apply AccSemAux in H6. destruct H6.
+              cbn in H0. rewrite EqExt' in H0. rewrite AdvanceMap1 in EqE2. rewrite EqE2 in H0. discriminate.
+           * destruct (CompileE e1); try discriminate.
+Qed.
                                        
 
 Lemma TranslateExpressionNone : forall (e : Exp) (env : Env)  (l0 l1 : list instruction)
