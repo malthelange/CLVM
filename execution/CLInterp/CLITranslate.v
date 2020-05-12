@@ -676,50 +676,6 @@ Proof. intro. induction lefti; intros.
          + rewrite AdvanceMap1 in H4. apply H4.
 Qed.
 
-         (** TODO:
-             Prove that Acc_sem for (S lasti) must yield a result.
-                   - We should be able to prove this from the fact that Acc_sem (S lefti + lasti) yields a result.
-                   
-             From that prove that the next instruction must yield a result.
-             That result must be equal to Acc_sem for (S lasti). 
-             Once that is done we should be done by the induction hypothesis.
-          *)
-         
-         
-           
-       
-
-
-Lemma AccSound : forall (ds: nat) (* >= 2 Hvor mange Acc skridt vi har i alt (vi 0-indeksere)*)
-                   (dc: nat) (* >= 2 Hvilket Acc skridt vi er nået til *)
-                   (ext : ExtMap) (ext' : ExtEnv) (v1 vs: Val) (env: Env) (stack : list (option Val)) (l1 l2 : list instruction)
-                   (e1 e2: Exp) 
-  ,
-    (dc <= ds)%nat ->
-    (forall (env : Env) (expis l0 l1 : list instruction) 
-      (ext : ExtMap) (stack : list (option Val)) 
-       (v : Val),
-        expis = l0 ++ l1 ->
-        Some l2 = Some l0 ->
-        E[| e1|] env (ExtMap_to_ExtEnv ext) = Some v ->
-        StackEInterp (l0 ++ l1) stack env ext false =
-        StackEInterp l1 (Some v :: stack) env ext false)  -> 
-    ext' = adv_ext (- Z.of_nat (S (S ds))) (ExtMap_to_ExtEnv ext) ->
-    Acc_sem (Fsem E[|e1 |] env ext') (S(dc))%nat (E[|e2|] env ext') = Some v1 ->
-    Acc_sem (Fsem E[|e1 |] env ext') (S (S (ds))) (E[|e2|] env ext') = Some vs  ->
-    StackEInterp (repeat_app (l2 ++ [IAccStep]) ((ds - dc)%nat) ++ l2 ++ IAccEnd :: l1)
-
-                 stack (v1 :: env) (adv_map (- Z.of_nat (ds - dc)) ext) false =
-    StackEInterp  l1 ((Some vs) :: stack) env ext false.
-Proof. intro. induction ds; intros.
-       - cbn in *. assert (H4: (dc = 0)%nat) by lia. rewrite H4 in *. cbn in *.
-         destruct (E[| e2|] env ext'); try discriminate. rewrite H2 in H3. 
-         rewrite H1 in H3. rewrite AdvanceExt1 in H3. replace (Z.of_nat 2 + - Z.of_nat 2) with 0 in H3 by lia.
-         rewrite AdvanceExt2 in H3. replace (- Z.of_nat 0) with 0 by lia. rewrite AdvanceMap2.
-         rewrite H0 with (expis := (l2 ++ IAccEnd :: l1))  (v:=vs); auto.
-       - cbn in *. assert (Harith: (S ds - dc)%nat = (S (ds - dc)%nat)) by lia.
-         
-
 
 Lemma TranslateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)) (v : Val),
@@ -835,9 +791,25 @@ Proof. intro. induction e using Exp_ind'; intros.
              destruct (E[| e1|] (v0 :: env) (adv_ext (- Z.of_nat (S d)) (ExtMap_to_ExtEnv ext))) eqn:EqE1.
              rewrite IHe1 with (expis := (l2 ++ [IAccStep] ++ repeat_app (l2 ++ [IAccStep]) d ++ l2 ++ [IAccEnd] ++ l1)) (v := v1).
              cbn. rewrite AdvanceMap3. replace (1 + - Z.of_nat (S d)) with (- Z.of_nat d) by lia.
-             remember (adv_ext (- Z.of_nat (S (S d))) (ExtMap_to_ExtEnv ext)) as ext'. 
-             assert (Ht: Acc_sem (Fsem E[|e1 |] env ext') 1 (E[|e2|] env ext') = Some v1).
-             cbn. rewrite EqE2. unfold ext'
+             remember (adv_map (- Z.of_nat (S (S d))) ext) as ext' eqn:EqExt'.
+             assert (H5: Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) 1 (E[|e2|] env (ExtMap_to_ExtEnv ext')) = Some v1).
+             cbn. rewrite EqExt'. repeat rewrite <- AdvanceMap1. rewrite EqE2. rewrite AdvanceExt1.
+             replace (Z.of_nat 1 + - Z.of_nat (S (S d))) with (- Z.of_nat (S d)) by lia.
+             rewrite EqE1. reflexivity.
+             assert (H6: Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) (2 + d) (E[|e2|] env (ExtMap_to_ExtEnv ext')) = Some v).
+             cbn. cbn in H1. rewrite EqExt'. repeat rewrite <- AdvanceMap1. apply H1.
+             replace (2 + d)%nat with ((1 + d) + 1)%nat in H6 by lia. apply AccSemAux in H6. destruct H6.
+             replace (adv_map (- Z.of_nat d) ext) with (adv_map (Z.of_nat (S 1)) ext').
+             rewrite AccSound with (vs:=x) (e1:=e1) (e2:=e2).
+             cbn in H1.
+             
+
+             (** TODO:
+                 Prove that Acc_sem (2 + d) has a value from Esem.
+                 From that prove that Acc_sem (1 + d) has a value.
+                 Use the AccSound lemma to prove the instructions yield Acc_sem (1 + d) as the top of environment.
+                 From here prove that the last steps yield Acc_sem (2 + d) as top of stack.
+              *)
                                        
 
 Lemma TranslateExpressionNone : forall (e : Exp) (env : Env)  (l0 l1 : list instruction)
