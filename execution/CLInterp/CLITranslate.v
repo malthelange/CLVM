@@ -9,7 +9,8 @@ Require Import Blockchain.
 Require Import Extras.
 Require Import Containers.
 Require Export Equalities.
-Require Export Utils. 
+Import Lia.
+(*Require Export Utils. *)
 
 Require Import Serializable.
 From RecordUpdate Require Import RecordUpdate.
@@ -178,8 +179,8 @@ Fixpoint repeat_app {A} (x : list A) (n: nat ) :=
 Fixpoint CompileE (e : Exp) : option (list instruction) :=
   match e with
   | OpE op args => match op with
-                  | BLit b => Some [IPushB b]
-                  | ZLit z => Some [IPushZ z]
+                  | BLit b => match args with | [] => Some [IPushB b] | _ => None end
+                  | ZLit z => match args with | [] => Some [IPushZ z] | _ => None end
                   | Neg => match args with
                           | [exp1] =>
                             do s1 <- CompileE exp1;
@@ -359,7 +360,7 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (option Val)) (e
                        | _ => None end
                | _ => None 
                end
-    | IVar n => StackEInterp tl ((StackLookupEnv n env)::stack) env ext partial
+    | IVar n => do v <- (StackLookupEnv n env); StackEInterp tl ((Some v)::stack) env ext partial
     | IAccStart1 z => StackEInterp tl stack env (adv_map (-z) ext) partial
     | IAccStart2 => match stack with (Some v)::tl2 => StackEInterp tl tl2 (v::env) (adv_map 1 ext) partial | _ => None end
     | IAccStep => match stack with (Some v)::tl2 => let env' := List.tl env in
@@ -497,7 +498,12 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)
 
 (** Partial evaluation CLVM, we assume expressions only evaluate to None when some required observable is not present. 
     Meaning we assume all expressions are well-formed. Whenever an expression returns None we just evaluate to a Empty trace.*)
+  
 
+       
+       
+      
+       
 Fixpoint StackCPartial (instrs : list CInstruction) (stack : list (option TraceM)) (env : Env) (exts: list ExtMap) (w_stack : list (option (bool * nat))) : option TraceM :=
   match instrs with
   | [] => match stack with
@@ -591,68 +597,91 @@ Proof.
   rewrite AdvanceMapSound. reflexivity. apply x0.
 Qed.
 
-(*
-Lemma NoneInvariant : forall (l : list instruction) (env : Env) (ext: ExtMap) (stack1 stack2 : list (option Val)),
-    StackEInterp l stack1 env ext false = StackEInterp [] stack2 env ext false -> 
-    In None stack1 -> In None stack2.
-Proof.
-  intros. generalize dependent l. induction l.
-  - intros. inversion H. unfold In.
-
-Lemma NoNoneInvariant : forall (l : list instruction) (env : Env) (ext: ExtMap) (stack : list (option Val))
-  ,
-    StackEInterp l (None::stack) env ext false = None.
-Proof.
-  intros. 
-Qed.
- *)
-
 Lemma AdvanceMap2 : forall (ext : ExtMap),
     adv_map 0 ext = ext.
 Proof.
 Admitted.
 
-Lemma AdvanceMap3 : forall (ext: ExtMap) (z1 z2: Z),
-    (adv_map z1 (adv_map (z2) ext)) = (adv_map (z1 + z2) ext).
+Lemma AdvanceMap3 : forall (z1 z2: Z) (ext : ExtMap),
+    adv_map z2 (adv_map z1 ext) = adv_map (z2 + z1) ext.
 Proof. Admitted.
+  
+Lemma AdvanceExt1 : forall (z1 z2: Z) (ext : ExtEnv),
+    adv_ext z2 (adv_ext z1 ext) = adv_ext (z2 + z1) ext.
+Proof.
+  intros. repeat (apply functional_extensionality; intros). unfold adv_ext.
+  replace (z1 + (z2 + x0)) with (z2 + z1 + x0) by lia. reflexivity.
+Qed.
 
-(*
-Lemma AccStepSound:
-  forall (d : nat) (e1 : Exp) (e2 : Exp) (l l2 : list instruction) (v0 v1 : Val) (env: Env) (ext: ExtMap), 
-    Acc_sem (Fsem E[|e1|] env (ExtMap_to_ExtEnv ext)) (S d) (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some v2 ->
-    Acc_sem (Fsem E[|e1|] env (ExtMap_to_ExtEnv ext)) d (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some v1  ->
-    Acc_sem (Fsem E[|e1|] env (ExtMap_to_ExtEnv ext)) 0 (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some v0  -> 
-    CompileE e1 = Some l2 ->
-    (forall (env : Env) (l0 l1 : list instruction)
-       (ext : ExtMap) (stack : list (option Val)) 
+Lemma AdvanceExt2 : forall (ext : ExtEnv),
+    adv_ext 0 ext = ext.
+Proof.
+  intros. repeat (apply functional_extensionality; intros). unfold adv_ext.
+  replace (0 + x0) with x0 by lia. reflexivity.
+Qed.
+
+
+Lemma Arith3:
+  forall ds dc : nat, 0%nat = (ds - dc)%nat -> (dc <= ds)%nat -> ds = dc.
+Proof.
+  intros ds dc H0 H1. lia. Qed.
+
+Lemma AccSemAux : forall  (d2 d1: nat) (e1 e2 : Exp) (env: Env) (ext: ExtEnv) (v : Val) ,
+    Acc_sem (Fsem E[| e1|] env ext)  (d1 + d2) (E[| e2|] env ext) = Some v ->
+    (exists v2,
+    Acc_sem (Fsem E[| e1|] env ext)  (d1) (E[| e2|] env ext) = Some v2).
+Proof. intro. induction d2; intros.
+       - exists v. replace (d1 + 0 )%nat with d1 in H by lia. apply H.
+       - replace (d1 + S d2)%nat with (S(d1 + d2))%nat in H by lia. cbn in *.
+         destruct (Acc_sem (Fsem E[| e1|] env ext) (d1 + d2) (E[| e2|] env ext)) eqn:Eq; try discriminate.
+         destruct (IHd2 d1 e1 e2 env ext v0). apply Eq. exists x. apply H0.
+Qed.    
+
+Lemma AccSound : forall (lefti: nat)
+                   (lasti: nat)
+                   (ext : ExtMap) (v1 vs: Val) (env: Env) (stack : list (option Val)) (l1 l2 : list instruction)
+                   (e1 e2: Exp) 
+  ,
+    (forall (env : Env) (expis l0 l1 : list instruction) 
+      (ext : ExtMap) (stack : list (option Val)) 
        (v : Val),
+        expis = l0 ++ l1 ->
         Some l2 = Some l0 ->
         E[| e1|] env (ExtMap_to_ExtEnv ext) = Some v ->
         StackEInterp (l0 ++ l1) stack env ext false =
-        StackEInterp l1 (Some v :: stack) env ext false) ->
-      CompileE e2 = Some l ->
-      (forall (env : Env) (l0 l1 : list instruction)
-         (ext : ExtMap) (stack : list (option Val)) 
-         (v : Val),
-          Some l = Some l0 ->
-          E[| e2|] env (ExtMap_to_ExtEnv ext) = Some v ->
-          StackEInterp (l0 ++ l1) stack env ext false =
-          StackEInterp l1 (Some v :: stack) env ext false) ->
-      forall  (l1 : list instruction) 
-        (stack : list (option Val)),
-        StackEInterp
-          (repeat_app (l2 ++ [IAccStep]) d ++ l2 ++ l1) (stack) (v0::env) (adv_map 1 ext) false =
-        StackEInterp l1 (Some v1 :: stack) (env) (adv_map 1 ext) false.
-Proof.
-  intros d. induction d; intros.
-  - cbn in *. destruct ( E[| e2|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3; try discriminate. 
-    destruct (E[| e1|] (v :: env) (adv_ext (Z.of_nat 1) (ExtMap_to_ExtEnv ext))) eqn:Eq4; try discriminate.
-    rewrite H2 with (v := v2). cbn. inversion H. reflexivity. reflexivity. rewrite AdvanceMap1 in Eq4.
-    unfold Z.of_nat in Eq4. cbn in Eq4. inversion H0. rewrite H6 in Eq4 . apply Eq4.
-  - cbn in *.
-*)
+        StackEInterp l1 (Some v :: stack) env ext false)  -> 
+    Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext)) lasti (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some v1 ->
+    Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext)) (lasti + lefti) (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some vs  ->
+    StackEInterp (repeat_app (l2 ++ [IAccStep]) lefti ++ l2 ++ IAccEnd :: l1)
+                 stack (v1 :: env) (adv_map (Z.of_nat (S lasti)) ext) false =
+    StackEInterp  (l2 ++ IAccEnd :: l1) stack (vs :: env) (adv_map (Z.of_nat (lefti + (S lasti))) ext) false.
+Proof. intro. induction lefti; intros.
+       - cbn. replace (lasti + 0)%nat with lasti in H1 by lia. rewrite H0 in H1. inversion H1. reflexivity.
+       - cbn. repeat rewrite <- app_assoc.
+         replace (lasti + S lefti)%nat with (S lasti + lefti)%nat in H1 by lia.
+         destruct (AccSemAux lefti (S lasti) e1 e2 env (ExtMap_to_ExtEnv ext) vs). apply H1.
+         inversion H2.
+         cbn in H4. rewrite H0 in H4. 
+         rewrite H with (expis := (l2 ++ [IAccStep] ++ repeat_app (l2 ++ [IAccStep]) lefti ++ l2 ++ IAccEnd :: l1)) (v:=x).
+         cbn. repeat rewrite AdvanceMap3.
+         replace (1 + Z.of_nat (S lasti)) with (Z.of_nat (S (S lasti))) by lia.
+         replace (Z.of_nat (S (lefti + S lasti))) with ((Z.of_nat (S lefti + S lasti))) by lia.
+         rewrite IHlefti with (vs:=vs) (e1 := e1) (e2 := e2).
+         + replace (S lefti + S lasti)%nat with (lefti + S (S lasti))%nat by lia. reflexivity.
+         + apply H.
+         + apply H2.
+         + apply H1.
+         + reflexivity.
+         + reflexivity.
+         + rewrite AdvanceMap1 in H4. apply H4.
+Qed.
 
-Lemma TranlateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
+
+
+    
+
+
+Lemma TranslateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)) (v : Val),
     expis = l0 ++ l1 ->
     CompileE e = Some l0 ->
@@ -714,31 +743,7 @@ Proof. intro. induction e using Exp_ind'; intros.
            rewrite H with (expis := (l ++ [IOp Neg] ++ l1)) (v := (ZVal z)); try reflexivity.
            rewrite <- H2. reflexivity. apply Eq1. apply Eq3.
          + rewrite H2. reflexivity.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + rewrite H2. reflexivity.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
-         + destruct (sequence
-                 (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
-                      args)); discriminate.
+         + inversion H2. reflexivity.
          + destruct (CompileE e1) eqn:Eq6; try discriminate; destruct (sequence
                  (map (fun e : Exp => E[| e|] env (ExtMap_to_ExtEnv ext))
                       args)). destruct args; try discriminate.
@@ -765,8 +770,8 @@ Proof. intro. induction e using Exp_ind'; intros.
          + destruct args; discriminate.
        - inversion H0. inversion H1. cbn. unfold ExtMap_to_ExtEnv. unfold find_default.
          reflexivity.
-       - inversion H0. inversion H1. cbn in *. rewrite <- lookupTranslateSound. reflexivity.
-       - destruct  d. cbn in *.
+       - inversion H0. inversion H1. cbn in *. rewrite <- lookupTranslateSound. rewrite H4. reflexivity.
+       - destruct d. cbn in *.
          + destruct (CompileE e2) eqn:Eq2; try discriminate. inversion H0.
            cbn in *.
          destruct ((E[| e2|] env (adv_ext (- Z.of_nat 0) (ExtMap_to_ExtEnv ext)))) eqn:Eq3.
@@ -776,30 +781,285 @@ Proof. intro. induction e using Exp_ind'; intros.
            * rewrite AdvanceMap1 in Eq3. apply Eq3.
            * discriminate.
          + inversion H0. destruct (CompileE e2) eqn:Eq2; try discriminate. destruct (CompileE e1) eqn:Eq1; try discriminate.
-           inversion H3. clear H3. cbn. cbn in H1. clear H0. repeat (rewrite <- app_assoc).
-             
-           induction d. 
-           * cbn in *. repeat (rewrite <-  app_assoc). 
-             destruct (E[| e2|] env (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext))) eqn:Eq4; try discriminate.
-             rewrite IHe2 with (expis := (l ++ (IAccStart2  :: l2 ++ [] ++ [IAccEnd]) ++ l1)) (v := v0); try reflexivity.
-             cbn in *. Admitted.
+           inversion H3. clear H3. cbn. clear H0. repeat (rewrite <- app_assoc).
+           destruct (E[| e2|] env (adv_ext (- Z.of_nat (S d)) (ExtMap_to_ExtEnv ext))) eqn:EqE2.
+           rewrite IHe2 with (expis :=  (l ++ IAccStart2 :: (repeat_app (l2 ++ [IAccStep]) (d - 0) ++ l2 ++ [IAccEnd]) ++ l1)) (v:=v0).
+           cbn. replace (d-0)%nat with d by lia. rewrite <- app_assoc.
+           destruct d.
+           * cbn in *. rewrite EqE2 in H1. rewrite <- app_assoc. rewrite IHe1 with (expis:= (l2 ++ [IAccEnd] ++ l1)) (v:=v). cbn. 
+             unfold Z.of_nat. cbn. rewrite AdvanceMap3. replace (1 + - (1)) with (0) by lia.
+             rewrite AdvanceMap2. reflexivity.
+             reflexivity. reflexivity. repeat rewrite <- AdvanceMap1. auto. 
+           * rewrite AdvanceMap3. replace ( (1 + - Z.of_nat (S (S d)))) with (- Z.of_nat (S d)) by lia.
+             cbn. repeat rewrite <- app_assoc.
+             destruct (E[| e1|] (v0 :: env) (adv_ext (- Z.of_nat (S d)) (ExtMap_to_ExtEnv ext))) eqn:EqE1.
+             rewrite IHe1 with (expis := (l2 ++ [IAccStep] ++ repeat_app (l2 ++ [IAccStep]) d ++ l2 ++ [IAccEnd] ++ l1)) (v := v1).
+             cbn. rewrite AdvanceMap3. replace (1 + - Z.of_nat (S d)) with (- Z.of_nat d) by lia.
+             remember (adv_map (- Z.of_nat (S (S d))) ext) as ext' eqn:EqExt'.
+             assert (H5: Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) 1 (E[|e2|] env (ExtMap_to_ExtEnv ext')) = Some v1).
+             cbn. rewrite EqExt'. repeat rewrite <- AdvanceMap1. rewrite EqE2. rewrite AdvanceExt1.
+             replace (Z.of_nat 1 + - Z.of_nat (S (S d))) with (- Z.of_nat (S d)) by lia.
+             rewrite EqE1. reflexivity.
+             assert (H6: Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) (2 + d) (E[|e2|] env (ExtMap_to_ExtEnv ext')) = Some v).
+             cbn. cbn in H1. rewrite EqExt'. repeat rewrite <- AdvanceMap1. apply H1.
+             replace (2 + d)%nat with ((1 + d) + 1)%nat in H6 by lia. apply AccSemAux in H6. destruct H6.
+             replace (adv_map (- Z.of_nat d) ext) with (adv_map (Z.of_nat (S 1)) ext').
+             rewrite AccSound with (vs:=x) (e1:=e1) (e2:=e2).
+             cbn in H1. cbn in H0. rewrite EqExt' in H0. repeat rewrite <- AdvanceMap1 in H0. rewrite H0 in H1.
+             rewrite AdvanceExt1 in H1. replace (Z.of_nat (S (S d)) + - Z.of_nat (S (S d))) with 0 in H1 by lia.
+             rewrite AdvanceExt2 in H1. rewrite EqExt'. rewrite AdvanceMap3.
+             replace (Z.of_nat (d + 2) + - Z.of_nat (S (S d))) with 0 by lia. rewrite AdvanceMap2.
+             rewrite IHe1 with (expis := (l2 ++ IAccEnd :: l1)) (v:=v); auto.
+             apply IHe1. apply H5. apply H0. rewrite EqExt'. rewrite AdvanceMap3.
+             replace (Z.of_nat 2 + - Z.of_nat (S (S d))) with (- Z.of_nat d) by lia. reflexivity.
+             reflexivity. reflexivity. rewrite <- AdvanceMap1. apply EqE1.
+             remember (adv_map (- Z.of_nat (S (S d))) ext) as ext' eqn:EqExt'.
+             assert (H6: Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) (2 + d) (E[|e2|] env (ExtMap_to_ExtEnv ext')) = Some v).
+             cbn. cbn in H1. rewrite EqExt'. repeat rewrite <- AdvanceMap1. apply H1.
+             replace (2 + d)%nat with (1 + (d + 1))%nat in H6 by lia. apply AccSemAux in H6. destruct H6.
+             cbn in H0. rewrite EqExt' in H0. repeat rewrite <-  AdvanceMap1 in H0. rewrite EqE2 in H0.
+             rewrite AdvanceExt1 in H0. replace (Z.of_nat 1 + - Z.of_nat (S (S d))) with ((- Z.of_nat (S d))) in H0 by lia.
+             rewrite EqE1 in H0. discriminate.
+           * reflexivity.
+           * reflexivity.
+           * rewrite AdvanceMap1 in EqE2. apply EqE2.
+           * remember (adv_map (- Z.of_nat (S d)) ext) as ext' eqn:EqExt'.
+             assert (H6: Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) (1 + d) (E[|e2|] env (ExtMap_to_ExtEnv ext')) = Some v).
+             cbn. cbn in H1. rewrite EqExt'. repeat rewrite <- AdvanceMap1. apply H1.
+             replace (1 + d)%nat with (0 + (d + 1))%nat in H6 by lia. apply AccSemAux in H6. destruct H6.
+              cbn in H0. rewrite EqExt' in H0. rewrite AdvanceMap1 in EqE2. rewrite EqE2 in H0. discriminate.
+           * destruct (CompileE e1); try discriminate.
+Qed.
+
+
+
+Lemma AccSoundNone : forall (lefti: nat)
+                       (lasti: nat)
+                       (ext : ExtMap) (v1 : Val) (env: Env) (stack : list (option Val)) (l1 l2 : list instruction)
+                       (e1 e2: Exp) 
+  ,
+    CompileE e1 = Some l2 ->
+    (forall (env : Env) (l0 l1 : list instruction)
+       (ext : ExtMap) (stack : list (option Val)),
+        Some l2 = Some l0 ->
+        E[| e1|] env (ExtMap_to_ExtEnv ext) = None ->
+        StackEInterp (l0 ++ l1) stack env ext false = None)  -> 
+    Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext)) lasti (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some v1 ->
+    Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext)) (lasti + lefti) (E[|e2|] env (ExtMap_to_ExtEnv ext)) = None  ->
+    StackEInterp (repeat_app (l2 ++ [IAccStep]) lefti ++ l2 ++ IAccEnd :: l1)
+                 stack (v1 :: env) (adv_map (Z.of_nat (S lasti)) ext) false = None.
+Proof.
+  intro. induction lefti; intros.
+  - cbn in *. replace (lasti + 0)%nat with lasti in H2 by lia. rewrite H1 in H2. discriminate.
+  - cbn. repeat rewrite <- app_assoc.
+    destruct (Acc_sem (Fsem E[| e1|] env (ExtMap_to_ExtEnv ext)) (S lasti) (E[| e2|] env (ExtMap_to_ExtEnv ext))) eqn:Eq1.
+    + inversion Eq1. cbn in H4.  rewrite H1 in H4.
+      rewrite TranslateExpressionStep with (e:=e1) (v:=v) (expis := (l2 ++ [IAccStep] ++ repeat_app (l2 ++ [IAccStep]) lefti ++ l2 ++ IAccEnd :: l1)). cbn. replace (lasti + S lefti)%nat with (S lasti + lefti)%nat in H2 by lia.
+      rewrite AdvanceMap3. replace (1 + Z.of_nat (S lasti)) with (Z.of_nat (S (S lasti))) by lia.
+      rewrite IHlefti with (e1:=e1) (e2:=e2); auto. reflexivity.
+      apply H. rewrite AdvanceMap1 in H4. apply H4.
+    + cbn in Eq1. rewrite H1 in Eq1. rewrite H0; auto. rewrite AdvanceMap1 in Eq1. apply Eq1.
+Qed.
+
+    (** TODO:
+        Destruct Esem på næste skridt.
+        I case med None kan vi bruge H.
+        I case med Some. can vi reducere og bruge inductions hypotesen.
+        
+     *)
+                                       
+
+Lemma TranslateExpressionNone : forall (e : Exp) (env : Env)  (l0 l1 : list instruction)
+                                 (ext : ExtMap)  (stack : list (option Val)),
+    CompileE e = Some l0 ->
+    Esem e env (ExtMap_to_ExtEnv ext) = None -> 
+    StackEInterp (l0 ++ l1) stack env ext false = None.
+Proof.
+  induction e using Exp_ind'; intros.
+  - destruct op; inversion H0; destruct args; inversion H3;
+      try (destruct args); try discriminate; try destruct args; try discriminate;
+        cbn in *; try (destruct (CompileE e0) eqn:Eq1); try (destruct (CompileE e) eqn:Eq2); try discriminate;
+          inversion H3;
+          try (apply all_apply'' in H; destruct H);
+          try (apply all_apply'' in H2; destruct H2).
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Add]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Add] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity.
+      rewrite <- app_assoc. rewrite H2. reflexivity. apply Eq1. apply Eq4. rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Add]) ++ l1)) (v:=v); auto.
+      rewrite <- app_assoc. reflexivity.
+      rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Sub]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Sub] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Sub]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Mult]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Mult] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Mult]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Div]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Div] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Div]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp And]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp And] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp And]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Or]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Or] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Or]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Less]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Less] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Less]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Leq]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Leq] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Leq]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3;
+        destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; cbn in *;
+          rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Equal]) ++ l1))(v:=v0); auto. 
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Equal] ++ l1) (v:=v); auto. cbn. 
+      destruct v; destruct v0; try discriminate; try reflexivity. rewrite H2. reflexivity. apply Eq1.
+      apply Eq4. rewrite TranslateExpressionStep with (e:=e0) (expis := (l ++ (l2 ++ [IOp Equal]) ++ l1)) (v:=v); auto. 
+      rewrite <- app_assoc. rewrite H. reflexivity. apply Eq2. apply Eq3. rewrite H2. reflexivity. apply Eq1. apply Eq4.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3; cbn in *. destruct v; try discriminate.
+      rewrite <- app_assoc. rewrite TranslateExpressionStep with (e:=e) (expis:= (l ++ [IOp Not] ++ l1)) (v:=(ZVal z)).
+      cbn. reflexivity. reflexivity. apply Eq2. apply Eq3. rewrite <- app_assoc. rewrite H. reflexivity.
+      apply Eq2. apply Eq3.
+    + destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq3; cbn in *. destruct v; try discriminate.
+      rewrite <- app_assoc. rewrite TranslateExpressionStep with (e:=e) (expis:= (l ++ [IOp Neg] ++ l1)) (v:=(BVal b)).
+      cbn. reflexivity. reflexivity. apply Eq2. apply Eq3. rewrite <- app_assoc. rewrite H. reflexivity.
+      apply Eq2. apply Eq3.
+    + destruct args; try discriminate.  try (apply all_apply'' in H6; destruct H6).
+      destruct (CompileE e1) eqn:Eq3; try discriminate. inversion H3. cbn.
+      destruct (E[| e|] env (ExtMap_to_ExtEnv ext)) eqn:Eq4; destruct (E[| e0|] env (ExtMap_to_ExtEnv ext)) eqn:Eq5;
+        destruct (E[| e1|] env (ExtMap_to_ExtEnv ext)) eqn:Eq6; cbn in H1; rewrite <- app_assoc.
+      * rewrite TranslateExpressionStep with (e:=e1) (expis := l3 ++ (l ++ l2 ++ [IOp Cond]) ++ l1) (v:=v1); auto.
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := l ++ (l2 ++ [IOp Cond]) ++ l1) (v:=v0); auto.
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e) (expis := l2 ++ [IOp Cond] ++ l1) (v:=v); auto. cbn.
+      try destruct v;  try destruct v0; try destruct v1; try discriminate; try reflexivity.
+      * rewrite H6; auto.
+      * rewrite TranslateExpressionStep with (e:=e1) (expis := l3 ++ (l ++ l2 ++ [IOp Cond]) ++ l1) (v:=v0); auto.
+        rewrite <- app_assoc. rewrite H2. reflexivity. apply Eq1. apply Eq5.
+      * rewrite H6; auto.
+      * rewrite TranslateExpressionStep with (e:=e1) (expis := l3 ++ (l ++ l2 ++ [IOp Cond]) ++ l1) (v:=v0); auto.
+      rewrite <- app_assoc.
+      rewrite TranslateExpressionStep with (e:=e0) (expis := l ++ (l2 ++ [IOp Cond]) ++ l1) (v:=v); auto.
+      rewrite <- app_assoc.
+      rewrite H. reflexivity. apply Eq2. apply Eq4.
+      * rewrite H6; auto.
+      * rewrite TranslateExpressionStep with (e:=e1) (expis := l3 ++ (l ++ l2 ++ [IOp Cond]) ++ l1) (v:=v); auto.
+        rewrite <- app_assoc. rewrite H2. reflexivity. apply Eq1. apply Eq5.
+      * rewrite H6; auto.
+    + destruct args; discriminate.
+    + destruct args; discriminate.
+    + destruct args; discriminate.
+  - inversion H0.
+  - inversion H0. inversion H. cbn. rewrite <- lookupTranslateSound. rewrite H2.  reflexivity.
+  - inversion H. destruct d.
+    + destruct (CompileE e2) eqn:Eq1. inversion H2. cbn.
+      cbn in H0. rewrite IHe2. reflexivity. reflexivity. rewrite AdvanceMap1 in H0. apply H0. discriminate.
+    + destruct d.
+      * cbn in H0. destruct (CompileE e1) eqn:Eq1; destruct (CompileE e2) eqn:Eq2; try discriminate. inversion H2.
+        cbn. clear H2. destruct (E[| e2|] env (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext))) eqn:Eq3.
+        rewrite <- app_assoc.
+        rewrite TranslateExpressionStep with (e:=e2) (expis := (l2 ++ (IAccStart2 :: l ++ [IAccEnd]) ++ l1)) (v:=v); auto.
+        cbn. rewrite <- app_assoc. apply IHe1; auto. rewrite AdvanceExt1 in H0. rewrite AdvanceMap3.
+        rewrite AdvanceMap1 in H0. replace (Z.of_nat 1 + - Z.of_nat 1) with (1 + - Z.of_nat 1) by lia. apply H0.
+        rewrite AdvanceMap1 in Eq3. apply Eq3. rewrite <- app_assoc. apply IHe2; auto. rewrite AdvanceMap1 in Eq3. apply Eq3.
+      * destruct (CompileE e1) eqn:Eq1; destruct (CompileE e2) eqn:Eq2; try discriminate. inversion H2. cbn.
+        rewrite <- app_assoc.
+        remember (adv_map (- Z.of_nat (S (S d))) ext) as ext' eqn:EqExt'.
+        destruct (Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) 1 (E[|e2|] env (ExtMap_to_ExtEnv ext'))) eqn:Eq3.
+        cbn in Eq3. destruct (E[| e2|] env (ExtMap_to_ExtEnv ext')) eqn:Eq4; try discriminate.
+        rewrite TranslateExpressionStep with (e:=e2) (expis := (l2 ++ (IAccStart2 :: ((l ++ [IAccStep]) ++ repeat_app (l ++ [IAccStep]) d) ++ l ++ [IAccEnd]) ++ l1)) (v:=v0); auto. cbn. repeat rewrite <- app_assoc.
+        rewrite TranslateExpressionStep with (e:=e1) (v:=v) (expis := (l ++ [IAccStep] ++ repeat_app (l ++ [IAccStep]) d ++ l ++ [IAccEnd] ++ l1)); auto.
+        cbn. destruct (Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) (S d) (E[|e2|] env (ExtMap_to_ExtEnv ext'))) eqn:Eq6.
+        rewrite AdvanceMap3. replace (1 + 1) with (Z.of_nat (S 1)) by lia.
+        rewrite AccSound with (vs:=v1) (e1:=e1) (e2:=e2); auto.
+        cbn in H0. cbn in Eq6. rewrite EqExt' in Eq6. repeat rewrite <-  AdvanceMap1 in Eq6. rewrite Eq6 in H0.
+        rewrite EqExt'. rewrite AdvanceMap3. replace (Z.of_nat (d + 2) + - Z.of_nat (S (S d))) with 0 by lia. rewrite AdvanceMap2.
+        rewrite AdvanceExt1 in H0. replace (Z.of_nat (S (S d)) + - Z.of_nat (S (S d))) with 0 in H0 by lia. rewrite AdvanceExt2 in H0.
+        rewrite IHe1; auto.
+        rewrite <- Eq1. apply TranslateExpressionStep.
+        cbn. rewrite Eq4. apply Eq3.
+        rewrite AdvanceMap3. replace (1 + 1) with (Z.of_nat 2) by lia.
+        rewrite AccSoundNone with (e1:=e1) (e2:=e2); auto. cbn. rewrite Eq4.  apply Eq3. rewrite <- AdvanceMap1. apply Eq3.
+        cbn in Eq3. destruct (E[| e2|] env (ExtMap_to_ExtEnv ext')) eqn:Eq4.
+        rewrite TranslateExpressionStep with (e:=e2) (expis:= (l2 ++ (IAccStart2 :: ((l ++ [IAccStep]) ++ repeat_app (l ++ [IAccStep]) d) ++ l ++ [IAccEnd]) ++ l1)) (v:=v). cbn. repeat rewrite <- app_assoc. rewrite IHe1; auto.
+        rewrite <- AdvanceMap1. apply Eq3. reflexivity. apply Eq2. apply Eq4.
+        rewrite IHe2; auto.
+Qed.
+        
+        
+
+        (**  TODO:
+             Split op i tilfældet hvor Acc_sem 1 = None, i det tilfælde viser vi det med evaluering af de to første 
+             skridt, og Some. 
+             Her må vi splitte i Acc_sem d = None, her bruger vi et selvstændigt lemma, og Some
+             Her kan vi bruge evalueringen af sidste skridt.
+         *)
+        
+                         
+
+
 
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
     CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = StackEInterp expis [] env extM false.
 Proof.
-  intros. unfold vmE. rewrite (app_nil_end expis).
+  intros. unfold vmE. 
   destruct (Esem e env (ExtMap_to_ExtEnv extM)) eqn:Eq.
-  rewrite TranlateExpressionStep with (e := e) (expis := (expis ++ [])) (v := v).
-  reflexivity.
-  + reflexivity.
-  + apply H.
-  + apply Eq.
-  + destruct e.
-    * admit.
-    * inversion H. cbn in *. unfold ExtMap_to_ExtEnv in Eq. unfold find_default. destruct (FMap.find (l,i)); discriminate.
-    * inversion H. cbn in *.  rewrite <- lookupTranslateSound. symmetry. apply Eq.
-    * inversion H. admit.
-Admitted.
+  - rewrite (app_nil_end expis). rewrite TranslateExpressionStep with (e := e) (expis := (expis ++ [])) (v := v). 
+    reflexivity. reflexivity. apply H. apply Eq.
+  - rewrite (app_nil_end expis). rewrite TranslateExpressionNone with (e := e). reflexivity. apply H. apply Eq.
+Qed.
+
+   
          
 Definition vmC (instrs : list CInstruction) (env: Env) (ext: ExtMap) : option TraceM :=
   StackCInterp instrs [] env [ext] [] O.
@@ -820,7 +1080,8 @@ Definition CompileRunE (e : Exp) : option Val :=
   do ce <- CompileE e; vmE ce [] def_extM.
 
 
-Definition update_ext (l1 : ObsLabel) (i1 : Z) (vn : Val)  (e : ExtEnv) := (fun l i => if ((OLEq l l1) && (i =? i1))%bool then vn else e l i).
+Definition update_ext (l1 : ObsLabel) (i1 : Z) (vn : Val)  (e : ExtEnv) :=
+  (fun l i => if ((OLEq l l1) && (i =? i1))%bool then vn else e l i).
 
 Definition lookupTrace (t : option Trace) (n : nat) (p1 p2 : Party) (a: Asset) : option Z :=
   match t with 
@@ -848,7 +1109,9 @@ Proof. Admitted.
 
 Lemma addTraceHelp: forall (tm1 tm2 : TraceM),
     traceMtoTrace (add_traceM tm1 tm2) 0 = add_trace (traceMtoTrace tm1 0) (traceMtoTrace tm2 0).
-  Admitted.
+Proof. intros. unfold traceMtoTrace.
+       unfold add_trace. repeat (apply functional_extensionality; intros).
+       unfold lookupTraceM. unfold add_trans. unfold add_traceM. unfold add_transM. Admitted.
 
 Lemma addTraceEqual:
       forall (t0 t1 : Trace) (tm1 tm2 : TraceM),
@@ -864,10 +1127,14 @@ Lemma SingleTraceEqual:
     traceMtoTrace (singleton_traceM (singleton_transM p p0 a 1)) 0 =
     singleton_trace (singleton_trans p p0 a 1).
 Proof.
-  intros p p0 a. unfold traceMtoTrace. unfold singleton_trace. unfold singleton_trans. unfold lookupTraceM.
-  cbn. unfold singleton_traceM. unfold singleton_transM.
-  repeat (apply functional_extensionality; intro). cbn. destruct (x).
-Admitted.
+  intros. unfold singleton_traceM. unfold singleton_transM.
+  unfold singleton_trans. unfold traceMtoTrace. unfold singleton_trace.
+  repeat (apply functional_extensionality; intros). unfold lookupTraceM.
+  destruct x. destruct p. destruct p0. destruct (n =? n0)%nat.
+  assert (H: FMap.find 0%nat (FMap.add 0%nat FMap.empty empty_traceM) = Some FMap.empty).
+  apply FMap.find_add. rewrite H. cbn.
+  assert (H1: FMap.find x0 (FMap.empty : FMap Party (FMap Party (FMap Asset nat))) = None).
+  apply FMap.find_empty. Admitted.
 
 Lemma ScaleEqual:
   forall (z : Z) (x : TraceM),
@@ -944,13 +1211,23 @@ Qed.
 Lemma ArithAux1:
   forall n i : nat, (i <= n)%nat -> (1 + (n - i))%nat = (S n - i)%nat.
 Proof.
-  intros n i H2. Admitted.
-  
-
+  intros n i H2. destruct i; destruct n.
+  - cbn. reflexivity.
+  - cbn. reflexivity.
+  - apply Nat.nle_succ_0 in H2. contradiction.
+  - cbn. omega.
+Qed.
+    
 Lemma ArithAux:
   forall n i : nat, (i <= n)%nat -> Z.of_nat (n - i) + 1 = Z.of_nat (S n - i).
 Proof.
-  intros n i H2. Admitted.
+  intros n i H2.
+  assert (H: Z.of_nat (n - i) + 1 = Z.of_nat (1 + (n - i))%nat).
+  cbn. induction ((n - i)%nat).
+  - reflexivity.
+  - lia.
+  - rewrite H. rewrite ArithAux1. reflexivity. apply H2.
+Qed.
 
 Lemma DelayTraceAux:
   forall (n i : nat) (t : Trace),
@@ -1044,18 +1321,6 @@ Proof.
     reflexivity.
 Qed.
 
-
-(*
-Lemma BranchAux : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs: list ExtMap) (l1 l2 : list CInstruction)
-                    (stack: list (option TraceM)) (w_stack : list nat) (t: TraceM) (w: nat),
-    CompileC c = Some l1 ->
-    StackCInterp (l1 ++ [CIIfEnd] ++ l2) ((Some t)::stack) env (extM::extMs) (w::w_stack) 1 =
-    StackCInterp l2 (Some (delay_traceM w t)::stack) env extMs w_stack 0.
-Proof. intro. induction c; intros.
-       - inversion H. reflexivity.
-       -  inversion H. destruct (CompileE e) eqn:Eq1. destruct (CompileC c) eqn:Eq2. inversion H1. cbn. rewrite <- app_assoc.
-          rewrite IHc. *)
-
 Lemma IfAux1:
   forall (c : Contr) (l0 : list CInstruction),
     CompileC c = Some l0 ->
@@ -1078,34 +1343,7 @@ Proof. intro. induction c; intros; inversion H; try reflexivity.
            destruct (CompileC c2); try discriminate. inversion H1. cbn.
          rewrite <- app_assoc. rewrite IHc2. cbn. rewrite <- app_assoc. rewrite IHc1. cbn. reflexivity.
          reflexivity. reflexivity.
-Qed.
-
-Lemma IfAux2:
-  forall  (c : Contr) (l0 : list CInstruction),
-    CompileC c = Some l0 ->
-    forall (env : Env) (extM1 extM2 : ExtMap) (extMs : list ExtMap)
-      (l2 : list CInstruction) (stack : list (option TraceM))
-      (w_stack : list nat) (w : nat) (x : TraceM),
-      StackCInterp (l0 ++ [CIIfEnd] ++ l2) (Some x :: stack) env
-                   (extM1 :: extM2 :: extMs)
-                   (w :: w_stack) 1 =
-      StackCInterp l2 (Some (delay_traceM w x) :: stack) env (extM2 :: extMs) w_stack 0.
-Proof.
-  intro. induction c; intros; inversion H; try reflexivity.
-  - destruct (CompileE e); destruct (CompileC c) eqn:Eq1; try discriminate. inversion H1. cbn. rewrite <- app_assoc.
-    rewrite IfAux1 with (c:=c). cbn. reflexivity. apply Eq1.
-  - destruct (CompileE e); destruct (CompileC c) eqn:Eq1; try discriminate. inversion H1.
-    rewrite <- app_assoc. rewrite (IfAux1 c). cbn. reflexivity. apply Eq1.
-  - destruct (CompileC c1) eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate. inversion H1.
-    rewrite <- app_assoc. rewrite (IfAux1 c2). rewrite <- app_assoc. rewrite (IfAux1 c1). cbn. reflexivity. apply Eq1.
-    apply Eq2.
-  - destruct (CompileC c) eqn:Eq1; try discriminate. inversion H1. cbn. rewrite <- app_assoc.
-    rewrite (IfAux1 c). cbn. reflexivity. apply Eq1.
-  - destruct (CompileE e); destruct (CompileC c1) eqn:Eq1; destruct (CompileC c2) eqn:Eq2; try discriminate.
-    inversion H1. cbn. rewrite <- app_assoc. rewrite (IfAux1 c2). cbn. rewrite <- app_assoc.
-    rewrite (IfAux1 c1). cbn. reflexivity. apply Eq1. apply Eq2.
-Qed.
-        
+Qed.    
 
 Lemma TranslateContractStep : forall (c : Contr) (env : Env) (extM : ExtMap) (extMs : list ExtMap)
                                (l1 l2 : list CInstruction) (stack : list (option TraceM)) (w_stack : list nat),
@@ -1262,7 +1500,8 @@ Proof.
       * apply WithinSoundRight with (e := e) (c1 := c1) (c2 := c2) in Eq4. cbn in Eq4.
         rewrite Eq4 in H4. destruct (C[| c2|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq6;
                              try discriminate. rewrite <- app_assoc.
-        destruct (IHc2 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) l3 ((CIThen :: l0 ++ [CIIfEnd]) ++ l2) stack ((n - n0)%nat :: w_stack)). reflexivity. rewrite H5. reflexivity. rewrite AdvanceMap1 in Eq6. apply Eq6. apply Eq1.
+        destruct (IHc2 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) l3 ((CIThen :: l0 ++ [CIIfEnd]) ++ l2) stack ((n - n0)%nat :: w_stack)).
+        reflexivity. rewrite H5. reflexivity. rewrite AdvanceMap1 in Eq6. apply Eq6. apply Eq1.
       * reflexivity.
 Qed.
 
@@ -1278,4 +1517,3 @@ Theorem TranslateContractSound : forall (c : Contr) (env : Env) (extM : ExtMap) 
     apply H3. cbn in H4. rewrite app_nil_r in H4. apply H4.
   - intros. cbn in H1. rewrite app_nil_r in H1. apply H1. apply H2.
 Qed.
-        

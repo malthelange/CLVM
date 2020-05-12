@@ -5,6 +5,7 @@
 ../vendor/record-update/RecordUpdate.v
 
 -R theories ConCert.Execution
+-R CLInterp ConCert.CL
 theories/Automation.v
 theories/Blockchain.v
 theories/BoundedN.v

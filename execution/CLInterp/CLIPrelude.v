@@ -4,9 +4,9 @@ Import ListNotations.
 From Coq Require Import ZArith.
 Require Import Basics.
 Require Import Automation.
-Require Import Monads.
-Require Import Blockchain.
-Require Import Extras.
+Require Import Monads. 
+Require Import Blockchain. 
+Require Import Extras. 
 Require Import Containers.
 Require Import Sorting.Permutation.
 Require Import Coq.Init.Datatypes.
@@ -274,8 +274,6 @@ Proof.
     + apply IHl in H0. right. apply H0.
 Qed.
 
-
-
 Lemma map_map_compose :
   forall (A B C : Type) (f : A -> B) (g : B -> C) (l : list A),
     map g (map f l) = map (compose g f) l.
@@ -296,7 +294,6 @@ Proof.
   intros. apply prod_map_inj in H0. apply H0. unfold FinFun.Injective. intros. cbn in H1.
   apply H1.  unfold FinFun.Injective. intros. lia. apply H.
 Qed.
-
            
 Lemma AdvanceMapSound : forall (ext: ExtMap) (d i res: Z) (l : ObsLabel),
 FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
