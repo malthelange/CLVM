@@ -253,8 +253,6 @@ Proof.
   apply H0. apply H4.
 Qed.
 
-
-
 Definition exmp : ExtMap := FMap.empty.
 
 Lemma map_adv_list_sound l k1 k2 v d :
@@ -295,7 +293,7 @@ Proof.
   apply H1.  unfold FinFun.Injective. intros. lia. apply H.
 Qed.
            
-Lemma AdvanceMapSound : forall (ext: ExtMap) (d i res: Z) (l : ObsLabel),
+Lemma AdvanceMapSound : forall (ext: ExtMap) (d i: Z) (l : ObsLabel),
 FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
 Proof. intros. destruct (FMap.find _ _) eqn:find.
   - apply FMap.In_elements in find.

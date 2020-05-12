@@ -594,17 +594,28 @@ Lemma AdvanceMap1 : forall (ext: ExtMap) (d : Z),
 Proof.
   intros. unfold ExtMap_to_ExtEnv. unfold adv_ext.
   repeat (apply functional_extensionality; intros).
-  rewrite AdvanceMapSound. reflexivity. apply x0.
+  rewrite AdvanceMapSound. reflexivity. 
 Qed.
 
+Axiom ExtrensicEqualityMaps: forall  (m1 m2 : ExtMap),
+    (forall (k : (ObsLabel * Z)), FMap.find k m1 = FMap.find k m2) ->
+               m1 = m2.
+                               
 Lemma AdvanceMap2 : forall (ext : ExtMap),
     adv_map 0 ext = ext.
-Proof.
-Admitted.
+Proof. intros. apply (ExtrensicEqualityMaps (adv_map 0 ext) ext). intro.
+       destruct k. replace (FMap.find (o, z) ext) with (FMap.find (o, (0 + z)) ext).
+       symmetry.
+       apply AdvanceMapSound.
+       replace (0 + z) with (z) by lia. reflexivity.
+Qed.  
 
 Lemma AdvanceMap3 : forall (z1 z2: Z) (ext : ExtMap),
     adv_map z2 (adv_map z1 ext) = adv_map (z2 + z1) ext.
-Proof. Admitted.
+Proof. intros. apply ExtrensicEqualityMaps. intro. destruct k.
+       rewrite <- AdvanceMapSound. rewrite <- AdvanceMapSound.
+       replace (z1 + (z2 + z)) with ((z2 + z1) + z) by lia. apply AdvanceMapSound.
+Qed.       
   
 Lemma AdvanceExt1 : forall (z1 z2: Z) (ext : ExtEnv),
     adv_ext z2 (adv_ext z1 ext) = adv_ext (z2 + z1) ext.
@@ -1084,14 +1095,18 @@ Definition option_traceM_to_Trace (t : option TraceM) (default: Z) : option Trac
   liftM2 traceMtoTrace t (Some 0).
 
 Lemma empty_TraceM_empty : forall n, FMap.find n empty_traceM = None.
-Proof. Admitted.
-                                                            
+Proof. intro. apply FMap.find_empty. Qed.
 
 Lemma addTraceHelp: forall (tm1 tm2 : TraceM),
     traceMtoTrace (add_traceM tm1 tm2) 0 = add_trace (traceMtoTrace tm1 0) (traceMtoTrace tm2 0).
 Proof. intros. unfold traceMtoTrace.
        unfold add_trace. repeat (apply functional_extensionality; intros).
-       unfold lookupTraceM. unfold add_trans. unfold add_traceM. unfold add_transM. Admitted.
+       unfold lookupTraceM. unfold add_trans. unfold add_traceM.
+       destruct (FMap.find x (FMap.union_with  (fun trans1 trans2 : TransM => Some (add_transM trans1 trans2)) tm1 tm2)) eqn:Eq.
+       inversion Eq.
+       apply fin_maps.lookup_union_with_Some in Eq. destruct Eq. destruct H. rewrite H0.
+       rewrite H.
+       
 
 Lemma addTraceEqual:
       forall (t0 t1 : Trace) (tm1 tm2 : TraceM),
