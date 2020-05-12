@@ -677,6 +677,10 @@ Proof. intro. induction lefti; intros.
 Qed.
 
 
+
+    
+
+
 Lemma TranslateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)) (v : Val),
     expis = l0 ++ l1 ->
@@ -826,6 +830,43 @@ Proof. intro. induction e using Exp_ind'; intros.
               cbn in H0. rewrite EqExt' in H0. rewrite AdvanceMap1 in EqE2. rewrite EqE2 in H0. discriminate.
            * destruct (CompileE e1); try discriminate.
 Qed.
+
+
+
+Lemma AccSoundNone : forall (lefti: nat)
+                       (lasti: nat)
+                       (ext : ExtMap) (v1 : Val) (env: Env) (stack : list (option Val)) (l1 l2 : list instruction)
+                       (e1 e2: Exp) 
+  ,
+    CompileE e1 = Some l2 ->
+    (forall (env : Env) (l0 l1 : list instruction)
+       (ext : ExtMap) (stack : list (option Val)),
+        Some l2 = Some l0 ->
+        E[| e1|] env (ExtMap_to_ExtEnv ext) = None ->
+        StackEInterp (l0 ++ l1) stack env ext false = None)  -> 
+    Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext)) lasti (E[|e2|] env (ExtMap_to_ExtEnv ext)) = Some v1 ->
+    Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext)) (lasti + lefti) (E[|e2|] env (ExtMap_to_ExtEnv ext)) = None  ->
+    StackEInterp (repeat_app (l2 ++ [IAccStep]) lefti ++ l2 ++ IAccEnd :: l1)
+                 stack (v1 :: env) (adv_map (Z.of_nat (S lasti)) ext) false = None.
+Proof.
+  intro. induction lefti; intros.
+  - cbn in *. replace (lasti + 0)%nat with lasti in H2 by lia. rewrite H1 in H2. discriminate.
+  - cbn. repeat rewrite <- app_assoc.
+    destruct (Acc_sem (Fsem E[| e1|] env (ExtMap_to_ExtEnv ext)) (S lasti) (E[| e2|] env (ExtMap_to_ExtEnv ext))) eqn:Eq1.
+    + inversion Eq1. cbn in H4.  rewrite H1 in H4.
+      rewrite TranslateExpressionStep with (e:=e1) (v:=v) (expis := (l2 ++ [IAccStep] ++ repeat_app (l2 ++ [IAccStep]) lefti ++ l2 ++ IAccEnd :: l1)). cbn. replace (lasti + S lefti)%nat with (S lasti + lefti)%nat in H2 by lia.
+      rewrite AdvanceMap3. replace (1 + Z.of_nat (S lasti)) with (Z.of_nat (S (S lasti))) by lia.
+      rewrite IHlefti with (e1:=e1) (e2:=e2); auto. reflexivity.
+      apply H. rewrite AdvanceMap1 in H4. apply H4.
+    + cbn in Eq1. rewrite H1 in Eq1. rewrite H0; auto. rewrite AdvanceMap1 in Eq1. apply Eq1.
+Qed.
+
+    (** TODO:
+        Destruct Esem på næste skridt.
+        I case med None kan vi bruge H.
+        I case med Some. can vi reducere og bruge inductions hypotesen.
+        
+     *)
                                        
 
 Lemma TranslateExpressionNone : forall (e : Exp) (env : Env)  (l0 l1 : list instruction)
@@ -960,11 +1001,51 @@ Proof.
     + destruct args; discriminate.
   - inversion H0.
   - inversion H0. inversion H. cbn. rewrite <- lookupTranslateSound. rewrite H2.  reflexivity.
-  - cbn in H0. inversion H. destruct d eqn:Eqd.
+  - inversion H. destruct d.
     + destruct (CompileE e2) eqn:Eq1. inversion H2. cbn.
       cbn in H0. rewrite IHe2. reflexivity. reflexivity. rewrite AdvanceMap1 in H0. apply H0. discriminate.
-    + destruct (CompileE e2) eqn:Eq1; destruct (CompileE e1) eqn:Eq2; try discriminate. inversion H2.
-      cbn. clear H2. cbn in H0. Admitted.
+    + destruct d.
+      * cbn in H0. destruct (CompileE e1) eqn:Eq1; destruct (CompileE e2) eqn:Eq2; try discriminate. inversion H2.
+        cbn. clear H2. destruct (E[| e2|] env (adv_ext (- Z.of_nat 1) (ExtMap_to_ExtEnv ext))) eqn:Eq3.
+        rewrite <- app_assoc.
+        rewrite TranslateExpressionStep with (e:=e2) (expis := (l2 ++ (IAccStart2 :: l ++ [IAccEnd]) ++ l1)) (v:=v); auto.
+        cbn. rewrite <- app_assoc. apply IHe1; auto. rewrite AdvanceExt1 in H0. rewrite AdvanceMap3.
+        rewrite AdvanceMap1 in H0. replace (Z.of_nat 1 + - Z.of_nat 1) with (1 + - Z.of_nat 1) by lia. apply H0.
+        rewrite AdvanceMap1 in Eq3. apply Eq3. rewrite <- app_assoc. apply IHe2; auto. rewrite AdvanceMap1 in Eq3. apply Eq3.
+      * destruct (CompileE e1) eqn:Eq1; destruct (CompileE e2) eqn:Eq2; try discriminate. inversion H2. cbn.
+        rewrite <- app_assoc.
+        remember (adv_map (- Z.of_nat (S (S d))) ext) as ext' eqn:EqExt'.
+        destruct (Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) 1 (E[|e2|] env (ExtMap_to_ExtEnv ext'))) eqn:Eq3.
+        cbn in Eq3. destruct (E[| e2|] env (ExtMap_to_ExtEnv ext')) eqn:Eq4; try discriminate.
+        rewrite TranslateExpressionStep with (e:=e2) (expis := (l2 ++ (IAccStart2 :: ((l ++ [IAccStep]) ++ repeat_app (l ++ [IAccStep]) d) ++ l ++ [IAccEnd]) ++ l1)) (v:=v0); auto. cbn. repeat rewrite <- app_assoc.
+        rewrite TranslateExpressionStep with (e:=e1) (v:=v) (expis := (l ++ [IAccStep] ++ repeat_app (l ++ [IAccStep]) d ++ l ++ [IAccEnd] ++ l1)); auto.
+        cbn. destruct (Acc_sem (Fsem E[|e1 |] env (ExtMap_to_ExtEnv ext')) (S d) (E[|e2|] env (ExtMap_to_ExtEnv ext'))) eqn:Eq6.
+        rewrite AdvanceMap3. replace (1 + 1) with (Z.of_nat (S 1)) by lia.
+        rewrite AccSound with (vs:=v1) (e1:=e1) (e2:=e2); auto.
+        cbn in H0. cbn in Eq6. rewrite EqExt' in Eq6. repeat rewrite <-  AdvanceMap1 in Eq6. rewrite Eq6 in H0.
+        rewrite EqExt'. rewrite AdvanceMap3. replace (Z.of_nat (d + 2) + - Z.of_nat (S (S d))) with 0 by lia. rewrite AdvanceMap2.
+        rewrite AdvanceExt1 in H0. replace (Z.of_nat (S (S d)) + - Z.of_nat (S (S d))) with 0 in H0 by lia. rewrite AdvanceExt2 in H0.
+        rewrite IHe1; auto.
+        rewrite <- Eq1. apply TranslateExpressionStep.
+        cbn. rewrite Eq4. apply Eq3.
+        rewrite AdvanceMap3. replace (1 + 1) with (Z.of_nat 2) by lia.
+        rewrite AccSoundNone with (e1:=e1) (e2:=e2); auto. cbn. rewrite Eq4.  apply Eq3. rewrite <- AdvanceMap1. apply Eq3.
+        cbn in Eq3. destruct (E[| e2|] env (ExtMap_to_ExtEnv ext')) eqn:Eq4.
+        rewrite TranslateExpressionStep with (e:=e2) (expis:= (l2 ++ (IAccStart2 :: ((l ++ [IAccStep]) ++ repeat_app (l ++ [IAccStep]) d) ++ l ++ [IAccEnd]) ++ l1)) (v:=v). cbn. repeat rewrite <- app_assoc. rewrite IHe1; auto.
+        rewrite <- AdvanceMap1. apply Eq3. reflexivity. apply Eq2. apply Eq4.
+        rewrite IHe2; auto.
+Qed.
+        
+        
+
+        (**  TODO:
+             Split op i tilfældet hvor Acc_sem 1 = None, i det tilfælde viser vi det med evaluering af de to første 
+             skridt, og Some. 
+             Her må vi splitte i Acc_sem d = None, her bruger vi et selvstændigt lemma, og Some
+             Her kan vi bruge evalueringen af sidste skridt.
+         *)
+        
+                         
 
 
 
