@@ -860,14 +860,7 @@ Proof.
       apply H. rewrite AdvanceMap1 in H4. apply H4.
     + cbn in Eq1. rewrite H1 in Eq1. rewrite H0; auto. rewrite AdvanceMap1 in Eq1. apply Eq1.
 Qed.
-
-    (** TODO:
-        Destruct Esem på næste skridt.
-        I case med None kan vi bruge H.
-        I case med Some. can vi reducere og bruge inductions hypotesen.
-        
-     *)
-                                       
+          
 
 Lemma TranslateExpressionNone : forall (e : Exp) (env : Env)  (l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)),
@@ -1036,19 +1029,6 @@ Proof.
         rewrite IHe2; auto.
 Qed.
         
-        
-
-        (**  TODO:
-             Split op i tilfældet hvor Acc_sem 1 = None, i det tilfælde viser vi det med evaluering af de to første 
-             skridt, og Some. 
-             Her må vi splitte i Acc_sem d = None, her bruger vi et selvstændigt lemma, og Some
-             Her kan vi bruge evalueringen af sidste skridt.
-         *)
-        
-                         
-
-
-
 Theorem TranslateExpressionSound : forall (e : Exp) (env : Env) (extM : ExtMap) (expis : list instruction),
     CompileE e = Some expis ->  Esem e env (ExtMap_to_ExtEnv extM) = StackEInterp expis [] env extM false.
 Proof.
@@ -1149,13 +1129,6 @@ Lemma DelayEqual:
     traceMtoTrace (delay_traceM n x) 0 = delay_trace n t0.
 Proof.
   intros n t0 x H1. Admitted.
-
-Lemma AdvanceExt1 : forall (ext : ExtEnv) (z1 z2 : Z),
-    adv_ext z1 (adv_ext z2 ext) = adv_ext (z1 + z2) ext.
-Proof.
-  intros. unfold adv_ext. repeat (apply functional_extensionality; intros).
-  assert (H5: (z2 + (z1 + x0)) = (z1 + z2 + x0)). omega. rewrite H5. reflexivity.
-Qed.
 
 Lemma AdvanceExtNeutral : forall (ext : ExtEnv),
     adv_ext 0 ext = ext.
