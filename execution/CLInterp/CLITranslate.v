@@ -1103,11 +1103,30 @@ Proof. intros. unfold traceMtoTrace.
        unfold add_trace. repeat (apply functional_extensionality; intros).
        unfold lookupTraceM. unfold add_trans. unfold add_traceM.
        destruct (FMap.find x (FMap.union_with  (fun trans1 trans2 : TransM => Some (add_transM trans1 trans2)) tm1 tm2)) eqn:Eq.
-       inversion Eq.
-       apply fin_maps.lookup_union_with_Some in Eq. destruct Eq. destruct H. rewrite H0.
-       rewrite H.
-       
-
+       + inversion Eq.
+         apply fin_maps.lookup_union_with_Some in Eq. destruct Eq; destruct H.
+         * rewrite H0. replace (FMap.find x tm1) with (Some t) by H.
+           replace (FMap.find x tm2) with (None : option TransM) by H1. cbn. assert (H2: forall n, n + 0 = n) by lia. rewrite H2.
+           reflexivity.
+         * destruct H. rewrite H0. replace (FMap.find x tm2) with (Some t) by H.
+           replace (FMap.find x tm1) with (None : option TransM) by H1. cbn. assert (H2: forall n, 0 + n = n) by lia. rewrite H2.
+           reflexivity.
+         * destruct H. destruct H. destruct H. destruct H1. rewrite H0. rewrite <- H2. cbn.
+           unfold lookup_transM. unfold add_transM. destruct (FMap.find (x0, x1, x2)
+                                                                        (FMap.union_with (fun z1 z2 : Z => Some (z1 + z2)) x3 x4)) eqn:Eq.
+           replace (FMap.find x tm1) with (Some x3) by H. replace (FMap.find x tm2) with (Some x4) by H1.
+           apply fin_maps.lookup_union_with_Some in Eq. destruct Eq. destruct H3.
+           replace (FMap.find (x0, x1, x2) x3) with (Some z) by H3.
+           replace (FMap.find (x0, x1, x2) x4) with (None : option Z) by H4. lia.
+           destruct H3. destruct H3.
+           replace (FMap.find (x0, x1, x2) x4) with (Some z) by H4.
+           replace (FMap.find (x0, x1, x2) x3) with (None : option Z) by H3. lia.
+           destruct H3. destruct H3. destruct H3. destruct H4.
+           replace (FMap.find (x0, x1, x2) x3) with (Some x5) by H3.
+           replace (FMap.find (x0, x1, x2) x4) with (Some x6) by H4. inversion H5. reflexivity. Admitted.
+           
+           
+           
 Lemma addTraceEqual:
       forall (t0 t1 : Trace) (tm1 tm2 : TraceM),
         traceMtoTrace tm1 0 = t0 ->
@@ -1125,16 +1144,13 @@ Proof.
   intros. unfold singleton_traceM. unfold singleton_transM.
   unfold singleton_trans. unfold traceMtoTrace. unfold singleton_trace.
   repeat (apply functional_extensionality; intros). unfold lookupTraceM.
-  destruct x. destruct p. destruct p0. destruct (n =? n0)%nat.
-  assert (H: FMap.find 0%nat (FMap.add 0%nat FMap.empty empty_traceM) = Some FMap.empty).
-  apply FMap.find_add. rewrite H. cbn.
-  assert (H1: FMap.find x0 (FMap.empty : FMap Party (FMap Party (FMap Asset nat))) = None).
-  apply FMap.find_empty. Admitted.
+  destruct (p =? p0)%nat. cbn. destruct x.
+  assert (FMap.find 0%nat (FMap.add 0%nat FMap.empty empty_traceM) = FMap.empty).
 
 Lemma ScaleEqual:
   forall (z : Z) (x : TraceM),
     traceMtoTrace (scale_traceM z x) 0 = scale_trace z (traceMtoTrace x 0).
-Proof.
+Proof.g
   intros z x. Admitted.
         
 
@@ -1143,7 +1159,7 @@ Lemma DelayEqual:
     traceMtoTrace x 0 = t0 ->
     traceMtoTrace (delay_traceM n x) 0 = delay_trace n t0.
 Proof.
-  intros n t0 x H1. Admitted.
+  intros n t0 x H1. rewrite <- H1. Admitted.
 
 Lemma AdvanceExtNeutral : forall (ext : ExtEnv),
     adv_ext 0 ext = ext.

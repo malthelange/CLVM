@@ -24,19 +24,9 @@ Parameter BoolObs : Z.
 Parameter ZObs : Z.
 Parameter TVar : Set.
 
-Inductive Asset :=
-| DKK
-| USD.
+Definition Asset := nat.
 
-Definition eqbA (a1 : Asset) (a2 : Asset)  : bool :=
-  match a1, a2 with
-  | DKK, DKK => true
-  | USD, USD => true
-  | _,_ => false
-  end.
-
-Inductive Party :=
-| PartyN : nat -> Party.
+Definition Party := nat.
 
 Inductive ObsLabel : Set := LabZ (l: Z) | LabB (l: Z).
 
@@ -81,7 +71,7 @@ Proof.
     congruence.
 Defined.
 
-
+(*
 Definition to_nat (p : Party) :=
   match p with
   | PartyN n => n
@@ -141,6 +131,7 @@ Proof.
   - right; intros xney.
     subst x. congruence.
 Defined.
+*)
 
 Instance Obs_countable : countable.Countable ObsLabel.
 Proof.
@@ -152,7 +143,7 @@ Proof.
   cbn.
   now rewrite of_to_sum.
 Defined.
-
+(*
 Instance Party_countable : countable.Countable Party.
 Proof.
   refine {| countable.encode t := countable.encode (to_nat t);
@@ -169,7 +160,7 @@ Proof.
                                      Some (of_natA zz) |}.
   intros x. rewrite countable.decode_encode. cbn. now rewrite of_to_natA.
 Defined.
-
+*)
 
 Definition OLEq (l1: ObsLabel) (l2 : ObsLabel) :=
   match l1, l2 with
@@ -327,70 +318,35 @@ Qed.
 (** Definition of transactions and traces for CL and CLVM along with combinators *)
 
 Definition Trans := Party -> Party -> Asset -> Z.
-Definition TransM := FMap Party (FMap Party (FMap Asset Z)).
+Definition TransM := FMap (Party * Party * Asset) Z.
 
 Definition empty_trans : Trans := fun p1 p2 c => 0.
 Definition empty_transM : TransM := FMap.empty.
 (** TODO: Make party a part of the Eqb class to simplify *)
 Definition singleton_trans (p1 p2 : Party) (a : Asset) (z: Z) : Trans :=
-  match p1, p2 with
-  | PartyN pn1, PartyN pn2 => if (pn1 =? pn2)%nat then empty_trans else
-                                fun p1' p2' a' => match p1', p2' with
-                                                  | PartyN pn1', PartyN pn2' =>
-                                                    if ((pn1 =? pn1')%nat && ((pn2 =? pn2')%nat && (eqbA a a'))%bool)%bool
-                                                    then z
-                                                    else if andb (pn1 =? pn2')%nat (andb (pn2 =? pn1')%nat (eqbA a a'))
-                                                         then -z
-                                                         else 0
-                                                  end
-  end.
-
+  if (p1 =? p2)%nat then empty_trans else
+    fun p1' p2' a' =>
+      if ((p1 =? p1')%nat && ((p2 =? p2')%nat && ( a =? a')%nat)%bool)%bool
+      then z
+      else if andb (p1 =? p2')%nat (andb (p2 =? p1')%nat (a =? a')%nat)
+           then -z
+           else 0.
 
 Definition singleton_transM (p1 p2 : Party) (a : Asset) (z: Z) : TransM :=
-  match p1, p2 with
-  | PartyN pn1, PartyN pn2 => if (pn1 =? pn2)%nat then FMap.empty else
-                                let azp : FMap Asset Z := FMap.add a z FMap.empty in
-                                let azm : FMap Asset Z := FMap.add a (-z) FMap.empty in
-                                let p2azp : FMap Party (FMap Asset Z) := FMap.add p2 azp FMap.empty  in
-                                let p1azm : FMap Party (FMap Asset Z) := FMap.add p1 azm FMap.empty  in
-                                let p1p2azp : TransM := FMap.add p1 p2azp FMap.empty in
-                                FMap.add p2 p1azm (p1p2azp)
-  end.
+   if (p1 =? p2)%nat then FMap.empty else
+     FMap.add (p2, p1, a) (-z) (FMap.add (p1, p2, a) z (FMap.empty)).
 
 
 Definition lookup_transM (p1 p2 : Party) (a : Asset) (t : TransM) :=
-  do l1 <- FMap.find p1 t ;
-  do l2 <- FMap.find p2 l1 ;
-  FMap.find a l2.
+  FMap.find (p1, p2, a) t.
 
 Definition add_trans : Trans -> Trans -> Trans := fun t1 t2 p1 p2 c => (t1 p1 p2 c + t2 p1 p2 c).
-Definition add_transM : TransM -> TransM -> TransM :=
-  FMap.union_with (fun paz1 paz2 => Some (FMap.union_with (fun az1 az2 => Some (FMap.union_with (fun z1 z2 => Some (z1 + z2)) az1 az2) ) paz1 paz2)).
-
-(** TODO 
-    Refactor 
- *)
-
-Fixpoint scale_aux3 (s : Z) (l : list (Asset * Z)) : FMap Asset Z :=
-  match l with
-  | [] => FMap.empty
-  | (a, z)::tl => FMap.add a (z * s) (scale_aux3 s tl)
-  end.
-
-Fixpoint scale_aux2 (s: Z) (l : list (Party * (FMap Asset Z))) : FMap Party (FMap Asset Z) :=
-  match l with
-  | [] => FMap.empty
-  | (p2, az)::tl => FMap.add p2 (scale_aux3 s (FMap.elements az)) (scale_aux2 s tl)
-  end.
-
-Fixpoint scale_aux1 (s: Z) (l : list (Party * (FMap Party (FMap Asset Z)))) : TransM :=
-  match l with
-  | [] => FMap.empty
-  | (p1, paz)::tl => FMap.add p1 (scale_aux2 s (FMap.elements paz)) (scale_aux1 s tl)
-  end.
+Definition add_transM  (t1 t2 : TransM) : TransM :=
+  FMap.union_with (fun z1 z2 => Some (z1 + z2)) t1 t2.
 
 Fixpoint scale_transM (s : Z) (t : TransM) :=
-  scale_aux1 s (FMap.elements t).
+  let keys := FMap.keys t in
+  List.fold_left (fun (tacc: TransM) (k: (Party * Party * Asset)) => FMap.alter (fun z => s * z) k tacc) keys t.
 
 Definition scale_trans : Z -> Trans -> Trans := fun s t p1 p2 c => (t p1 p2 c * s).
 
