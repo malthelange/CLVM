@@ -1175,9 +1175,45 @@ Proof.
   intros. unfold singleton_traceM. unfold singleton_transM.
   unfold singleton_trans. unfold traceMtoTrace. unfold singleton_trace.
   repeat (apply functional_extensionality; intros). unfold lookupTraceM.
-  destruct (p =? p0)%nat. cbn. destruct x.
-  Admitted.
+  destruct (p =? p0)%nat eqn:Eq.
+  - cbn. destruct x.
+    + assert  (FMap.find 0%nat (FMap.add 0%nat FMap.empty empty_traceM) = Some FMap.empty).
+      apply FMap.find_add. rewrite H. unfold lookup_transM.
+      replace (FMap.find (x0, x1, x2) FMap.empty) with (None : option Z).
+      unfold empty_trans. reflexivity. symmetry. apply FMap.find_empty.
+    + assert (H : FMap.find (S x) (FMap.add 0%nat FMap.empty empty_traceM) = FMap.find (S x) empty_traceM).
+      apply FMap.find_add_ne. lia. rewrite H. unfold empty_traceM.
+      assert (FMap.find (S x) (FMap.empty : TraceM)  = (None : option TransM)).
+      apply FMap.find_empty. rewrite H0. unfold empty_trans. reflexivity.
+  - cbn. destruct x.
+    + assert (FMap.find 0%nat (FMap.add 0%nat (FMap.add (p0, p, a) (- (1)) (FMap.add (p, p0, a) 1 FMap.empty)) empty_traceM) =
+              Some (FMap.add (p0, p, a) (- (1)) (FMap.add (p, p0, a) 1 FMap.empty))).
+      apply FMap.find_add. rewrite H. unfold lookup_transM.
+      destruct ((p =? x0)%nat) eqn:Eq1; destruct (p0 =? x1)%nat eqn:Eq2; destruct (a =? x2)%nat eqn:Eq3. 
+      * rewrite Nat.eqb_eq in Eq1. rewrite Nat.eqb_eq in Eq2. rewrite Nat.eqb_eq in Eq3.
+        rewrite Eq1. rewrite Eq2. rewrite Eq3. cbn.
+        assert (FMap.find (x0, x1, x2) (FMap.add (x1, x0, x2) (- (1)) (FMap.add (x0, x1, x2) 1 (FMap.empty : TransM))) =
+                FMap.find (x0, x1, x2) (FMap.add (x0, x1, x2) 1 (FMap.empty : TransM))).
+        apply FMap.find_add_ne. intro. inversion H0. auto. rewrite Nat.eqb_neq in Eq. rewrite H2 in Eq2. rewrite <- Eq2 in Eq1. auto.
+        rewrite H0. assert (H1: FMap.find (x0, x1, x2) (FMap.add (x0, x1, x2) 1 (FMap.empty : TransM)) = Some 1).
+        apply FMap.find_add.  rewrite H1. reflexivity.
+      * cbn. rewrite Bool.andb_comm. replace ((p0 =? x0)%nat && false) with (false && (p0 =? x0)%nat). cbn.
+        rewrite Nat.eqb_neq in Eq3.
+        assert (H1 : FMap.find (x0, x1, x2) (FMap.add (p0, p, a) (- (1)) (FMap.add (p, p0, a) 1 (FMap.empty : TransM))) =
+                     FMap.find (x0, x1, x2) (FMap.add (p, p0, a) 1 (FMap.empty : TransM))).
+        apply FMap.find_add_ne. intro. inversion H0. auto. rewrite H1.
+        assert (H2 : FMap.find (x0, x1, x2) (FMap.add (p, p0, a) 1 (FMap.empty : TransM)) =
+                     FMap.find (x0, x1, x2) (FMap.empty : TransM)).
+        apply FMap.find_add_ne. intro. inversion H0. auto. rewrite H2.
+        assert (H3: FMap.find (x0, x1, x2) (FMap.empty : TransM) = (None : option Z)).
+        apply FMap.find_empty. rewrite H3. reflexivity.
+        apply Bool.andb_comm.
+      *
 
+        
+      
+                                     
+  
 Lemma ScaleEqual:
   forall (z : Z) (x : TraceM),
     traceMtoTrace (scale_traceM z x) 0 = scale_trace z (traceMtoTrace x 0).
