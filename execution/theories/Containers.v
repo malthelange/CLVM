@@ -28,7 +28,7 @@ Module FMap.
   Notation size := stdpp.base.size.
   Notation of_list := fin_maps.list_to_map.
   Notation union := stdpp.base.union.
-  Notation union_with := stdpp.base.union_with.
+  Notation union_with := stdpp.base.union_with.k
   Notation alter := stdpp.base.alter.
   Notation partial_alter := stdpp.base.partial_alter.
 

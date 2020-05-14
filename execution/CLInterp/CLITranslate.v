@@ -1193,7 +1193,9 @@ Lemma DelayEqual:
     traceMtoTrace x 0 = t0 ->
     traceMtoTrace (delay_traceM n x) 0 = delay_trace n t0.
 Proof.
-  intros n t0 x H1. rewrite <- H1. Admitted.
+  intros n t0 x H1. rewrite <- H1. unfold traceMtoTrace.
+  repeat (apply functional_extensionality; intro). unfold lookupTraceM. unfold delay_trace.
+  cbn. Admitted.
 
 Lemma AdvanceExtNeutral : forall (ext : ExtEnv),
     adv_ext 0 ext = ext.
@@ -1272,8 +1274,17 @@ Lemma DelayTraceAux:
     delay_trace n (delay_trace i t) = delay_trace (n + i) t.
 Proof.
   intros n i t. unfold delay_trace.
-  repeat (apply functional_extensionality; intros). cbn. Admitted.
-  
+  repeat (apply functional_extensionality; intros).
+  destruct ((n <=? x)%nat) eqn:Eq1.
+  - rewrite Nat.leb_le in Eq1. destruct (i <=? x - n)%nat eqn:Eq2.
+    assert ((n + i <=? x)%nat = true). rewrite Nat.leb_le in Eq2. rewrite Nat.leb_le.
+    lia. rewrite H. replace (x - n - i)%nat with (x - (n + i))%nat by lia. reflexivity.
+    assert ((n + i <=? x)%nat = false). rewrite Nat.leb_nle. rewrite Nat.leb_nle in Eq2. lia.
+    rewrite H. reflexivity.
+  - assert ((n + i <=? x)%nat = false). rewrite Nat.leb_nle in Eq1. rewrite Nat.leb_nle. lia.
+    rewrite H. reflexivity.
+Qed.
+
 
 Lemma WithinSound : forall  (n i : nat) (expis: list instruction) (extM : ExtMap) (env: Env) (e : Exp) (c1 c2 : Contr),
     CompileE e = Some expis -> 
