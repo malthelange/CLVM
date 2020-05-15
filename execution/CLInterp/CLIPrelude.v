@@ -217,17 +217,28 @@ Definition ExtMap_to_ExtEnv (extM : ExtMap) : ExtEnv := fun l i => match FMap.fi
 (** Interfaces for advancing environments *)
 
 Definition empt : FMap (ObsLabel * Z) Val := FMap.empty.
-
+Definition TransM := FMap (Party * Party * Asset) Z.
+Definition TraceM := FMap nat TransM.
 
 Definition adv_elem (d : Z) ( x : ObsLabel * Z * Val) : ObsLabel * Z * Val
   := base.prod_map (base.prod_map id (fun x => x - d)) id x.
+
+Definition delay_elem (d : nat) ( x : nat * TransM) : nat * TransM
+  := base.prod_map (fun n => (n + d)%nat) id x.
 
 Definition adv_list (d : Z) (xs : list (ObsLabel * Z * Val))
   : list (ObsLabel * Z * Val)
   := map (adv_elem d) xs.
 
+Definition delay_list (d : nat) (xs : list (nat * TransM))
+  : list (nat * TransM)
+  := map (delay_elem d) xs.
+
 Definition adv_map (d : Z) (e : ExtMap) : ExtMap
   := FMap.of_list (adv_list d (FMap.elements e)).
+
+Definition delay_traceM (d : nat) (e : TraceM) : TraceM
+  := FMap.of_list (delay_list d (FMap.elements e)).
 
 Lemma prod_map_compose_fst { A A' B B' } (f : A -> A') (g : B -> B'):
   compose fst  (base.prod_map f g) = compose f  fst.
@@ -263,6 +274,33 @@ Proof.
     + apply IHl in H0. right. apply H0.
 Qed.
 
+Lemma delay_trace_list_sound l k1 v d :
+  In ((k1 + d)%nat, v) (delay_list d l) <->
+  In (k1, v) l.
+Proof.
+  induction l; auto.
+  split; intros. 
+  - inversion H.
+    + inversion H0. destruct a. cbn in *. left. assert (H5: n = k1) by lia.
+      rewrite <- H5. reflexivity.
+    + right. apply IHl. apply H0. 
+  - inversion H. 
+    + destruct a. cbn in *. left. unfold delay_elem.
+      unfold id. unfold base.prod_map. cbn in *. inversion H0.
+      reflexivity.
+    + apply IHl in H0. right. apply H0.
+Qed.
+
+Lemma delay_trace_list_none l k1 v d :
+    (d > k1)%nat ->
+    ~ In (k1, v) (delay_list d l).
+Proof.
+  intros. induction l.
+  - cbn. auto.
+  - intro. destruct H0. unfold delay_elem in H0. unfold base.prod_map in H0.
+    destruct a. cbn in H0. inversion H0. lia. auto.
+Qed.
+
 Lemma map_map_compose :
   forall (A B C : Type) (f : A -> B) (g : B -> C) (l : list A),
     map g (map f l) = map (compose g f) l.
@@ -283,7 +321,57 @@ Proof.
   intros. apply prod_map_inj in H0. apply H0. unfold FinFun.Injective. intros. cbn in H1.
   apply H1.  unfold FinFun.Injective. intros. lia. apply H.
 Qed.
-           
+
+Lemma perm_delay_list (m : FMap nat TransM) (d : nat)
+      (l : list (nat * TransM)):
+  NoDup (map fst l) ->
+  Permutation (FMap.elements (FMap.of_list (delay_list d l))) (delay_list d l).
+Proof. 
+  intros. apply FMap.elements_of_list. unfold delay_list. rewrite map_map_compose.
+  unfold delay_elem. rewrite prod_map_compose_fst. rewrite <- map_map_compose.
+  apply FinFun.Injective_map_NoDup. unfold FinFun.Injective.
+  intros. lia. apply H. 
+Qed.
+
+Lemma DelayTraceMSound : forall (trace: TraceM) (d i: nat),
+FMap.find i trace = FMap.find (i + d)%nat (delay_traceM d trace).
+Proof. intros. destruct (FMap.find _) eqn:find.
+  - apply FMap.In_elements in find.
+    symmetry. 
+    apply FMap.In_elements.
+    unfold delay_traceM.
+    assert (H: Permutation (FMap.elements (FMap.of_list (delay_list d (FMap.elements trace))))
+                           (delay_list d (FMap.elements trace))).
+    apply perm_delay_list. apply trace. apply FMap.NoDup_keys.
+    apply Permutation_in with (l := (delay_list d (FMap.elements trace))). apply Permutation_sym in H.
+    apply H.
+    apply delay_trace_list_sound. apply find.
+  - symmetry. rewrite <- FMap.not_In_elements with (k:= i) (m:=trace )in find.
+    apply FMap.not_In_elements.
+    intros v isin. specialize (find v).
+    unfold delay_traceM in isin.
+    assert (H: Permutation (FMap.elements (FMap.of_list (delay_list d (FMap.elements trace))))
+                           (delay_list d (FMap.elements trace))).
+    apply perm_delay_list. apply trace. apply FMap.NoDup_keys.
+    assert (H1:  In ((i + d)%nat, v)  (delay_list d (FMap.elements trace))).
+    apply Permutation_in
+      with (l := (FMap.elements (FMap.of_list (delay_list d (FMap.elements trace))))).
+    apply H. apply isin. apply delay_trace_list_sound in H1. contradiction.
+Qed.
+
+Lemma DelayTraceMNone : forall (trace : TraceM) (d i : nat),
+    (d > i)%nat ->
+    FMap.find i (delay_traceM d trace) = None.
+  intros. apply FMap.not_In_elements. intro. unfold delay_traceM.
+  assert (H1: Permutation (FMap.elements (FMap.of_list (delay_list d (FMap.elements trace))))
+                          (delay_list d (FMap.elements trace))).
+  apply perm_delay_list. apply trace. apply FMap.NoDup_keys.
+  intro. apply Permutation_in with (l':= (delay_list d (FMap.elements trace))) in H0.
+  assert (~In (i, v) (delay_list d (FMap.elements trace))).
+  apply delay_trace_list_none. apply H. auto.
+  apply H1.
+Qed.
+
 Lemma AdvanceMapSound : forall (ext: ExtMap) (d i: Z) (l : ObsLabel),
 FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
 Proof. intros. destruct (FMap.find _ _) eqn:find.
@@ -298,7 +386,7 @@ Proof. intros. destruct (FMap.find _ _) eqn:find.
     apply Permutation_in with (l := (adv_list d (FMap.elements ext))). apply Permutation_sym in H.
     apply H.
     apply map_adv_list_sound. apply find.
-  - symmetry.
+   - symmetry.
     rewrite <- FMap.not_In_elements with (k:= (l, d + i)) (m := ext) in find.
     apply FMap.not_In_elements.
     intros v isin.
@@ -316,9 +404,7 @@ Qed.
 
 
 (** Definition of transactions and traces for CL and CLVM along with combinators *)
-
 Definition Trans := Party -> Party -> Asset -> Z.
-Definition TransM := FMap (Party * Party * Asset) Z.
 
 Definition empty_trans : Trans := fun p1 p2 c => 0.
 Definition empty_transM : TransM := FMap.empty.
@@ -352,7 +438,6 @@ Definition scale_trans : Z -> Trans -> Trans := fun s t p1 p2 c => (t p1 p2 c * 
 
 Definition Trace := nat -> Trans.
 
-Definition TraceM := FMap nat TransM.
 
 Definition const_trace (t : Trans) : Trace := fun x => t.
 Definition empty_trace : Trace := const_trace empty_trans.
@@ -370,20 +455,14 @@ Definition singleton_traceM (t: TransM) : TraceM := FMap.add 0%nat t empty_trace
 Definition scale_trace (s : Z) (t : Trace) : Trace
   := fun x => scale_trans s  (t x).
 
-Definition scale_traceM (s : Z) (t: TraceM) : TraceM :=
-  FMap.of_list (List.map (fun e : nat * TransM => match e with | (n,t1) => (n, (scale_transM s t1)) end) (FMap.elements t)).
+Fixpoint scale_traceM (s : Z) (t : TraceM) :=
+  let keys := FMap.keys t in
+  List.fold_left (fun (tacc: TraceM) (k: nat) => FMap.alter (fun trans => scale_transM s trans) k tacc) keys t.
 
 Definition delay_trace (d : nat) (t : Trace) : Trace :=
   fun x => if (leb d x)
            then t (x - d)%nat
            else empty_trans.
-
-Definition delay_traceM (d : nat) (t : TraceM) : TraceM :=
-  FMap.of_list
-    (List.map (fun e : nat * TransM => match e with
-                                       | (n,trans) =>
-                                         ((n + d)%nat, trans) end)
-              (FMap.elements t)).
 
 Definition add_trace (t1 t2 : Trace) : Trace 
   := fun x => add_trans (t1 x) (t2 x).

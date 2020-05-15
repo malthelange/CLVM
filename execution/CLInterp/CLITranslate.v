@@ -498,11 +498,6 @@ Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM)
 
 (** Partial evaluation CLVM, we assume expressions only evaluate to None when some required observable is not present. 
     Meaning we assume all expressions are well-formed. Whenever an expression returns None we just evaluate to a Empty trace.*)
-  
-
-       
-       
-      
        
 Fixpoint StackCPartial (instrs : list CInstruction) (stack : list (option TraceM)) (env : Env) (exts: list ExtMap) (w_stack : list (option (bool * nat))) : option TraceM :=
   match instrs with
@@ -687,11 +682,6 @@ Proof. intro. induction lefti; intros.
          + rewrite AdvanceMap1 in H4. apply H4.
 Qed.
 
-
-
-    
-
-
 Lemma TranslateExpressionStep : forall (e : Exp) (env : Env)  (expis l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)) (v : Val),
     expis = l0 ++ l1 ->
@@ -842,8 +832,6 @@ Proof. intro. induction e using Exp_ind'; intros.
            * destruct (CompileE e1); try discriminate.
 Qed.
 
-
-
 Lemma AccSoundNone : forall (lefti: nat)
                        (lasti: nat)
                        (ext : ExtMap) (v1 : Val) (env: Env) (stack : list (option Val)) (l1 l2 : list instruction)
@@ -870,8 +858,7 @@ Proof.
       rewrite IHlefti with (e1:=e1) (e2:=e2); auto. reflexivity.
       apply H. rewrite AdvanceMap1 in H4. apply H4.
     + cbn in Eq1. rewrite H1 in Eq1. rewrite H0; auto. rewrite AdvanceMap1 in Eq1. apply Eq1.
-Qed.
-          
+Qed.      
 
 Lemma TranslateExpressionNone : forall (e : Exp) (env : Env)  (l0 l1 : list instruction)
                                  (ext : ExtMap)  (stack : list (option Val)),
@@ -1260,7 +1247,19 @@ Proof.
       apply FMap.find_add_ne. auto. rewrite H. assert (FMap.find (S x) (FMap.empty : TraceM) = (None : option TransM)).
       apply FMap.find_empty. rewrite H0. unfold empty_trans. reflexivity.
 Qed.      
-        
+
+Context {K V : Type} `{countable.Countable K}.
+
+Lemma FoldLeftAlter : forall (m : FMap K V) (v : V) (k: K) (f : V -> V),
+    FMap.find k m = Some v ->
+    FMap.find k
+              (List.fold_left (fun (macc: (FMap K V)) (k: K) => FMap.alter f k macc) (FMap.keys m) m) =
+    Some (f v).
+Proof.
+  intro. induction m using FMap.ind; intros. 
+  - rewrite FMap.find_empty in H0. discriminate.
+  - unfold FMap.keys. Admitted.
+
 Lemma ScaleEqual:
   forall (z : Z) (x : TraceM),
     traceMtoTrace (scale_traceM z x) 0 = scale_trace z (traceMtoTrace x 0).
@@ -1269,8 +1268,7 @@ Proof.
   repeat (apply functional_extensionality; intro). cbn.
   unfold scale_traceM. unfold scale_trace. unfold scale_trans. Admitted.
   
-        
-
+  
 Lemma DelayEqual:
   forall (n : nat) (t0 : Trace) (x : TraceM),
     traceMtoTrace x 0 = t0 ->
@@ -1278,8 +1276,18 @@ Lemma DelayEqual:
 Proof.
   intros n t0 x H1. rewrite <- H1. unfold traceMtoTrace.
   repeat (apply functional_extensionality; intro). unfold lookupTraceM. unfold delay_trace.
-  cbn. Admitted.
-
+  cbn. destruct (n <=? x0)%nat eqn:Eq1.
+  - assert (H: FMap.find x0 (delay_traceM n x) = FMap.find ((x0 - n)%nat) x ).
+    rewrite Nat.leb_le in Eq1. 
+    assert (x0 = (x0 - n) + n)%nat by lia.
+    rewrite H0. rewrite <- DelayTraceMSound with (d:=n).
+    replace ((x0 - n + n - n)%nat) with (x0 - n)%nat by lia.  reflexivity.
+    rewrite H. reflexivity.
+  - rewrite Nat.leb_nle in Eq1. assert (n > x0)%nat by lia.
+    rewrite DelayTraceMNone. unfold empty_trans. reflexivity.
+    apply H0.
+Qed.
+   
 Lemma AdvanceExtNeutral : forall (ext : ExtEnv),
     adv_ext 0 ext = ext.
 Proof. intro. reflexivity. Qed.
