@@ -75,7 +75,14 @@ Class MonadTrans (m : Type -> Type) (mt : Type -> Type) : Type :=
   { lift : forall {t}, mt t -> m t }.
 
 
-Global Instance option_monad_laws : MonadLaws option_monad.
+Global Instance Monad_option : Monad option :=
+  {| ret _ t := Some t;
+     bind _ _ v f := match v with
+                 | Some val => f val
+                 | None => None
+                 end |}.
+
+Global Instance MonadLaws_Monad_option : MonadLaws Monad_option.
 Proof.
   constructor.
   - auto.
