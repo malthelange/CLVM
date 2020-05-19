@@ -40,24 +40,26 @@ Section Interp.
 
 
   (** Automatically prove that our required datatypes and records are serializable, needs to be in this file for some reason *)
-  Instance party_serializable : Serializable Party :=
-    Derive Serializable Party_rect<PartyN>.
+(*  Instance party_serializable : Serializable Party :=
+    Derive Serializable Party_rect<PartyN>. *)
   Instance Obs_serializable : Serializable ObsLabel :=
     Derive Serializable ObsLabel_rect<LabZ, LabB>.
   Instance Val_Serializable : Serializable Val :=
     Derive Serializable Val_rect<BVal, ZVal>.
   Instance ExtMapSerializable : Serializable ExtMap := _.
-  Instance asset_serializable : Serializable Asset :=
-    Derive Serializable Asset_rect<DKK, USD>.
+(*  Instance asset_serializable : Serializable Asset :=
+    Derive Serializable Asset_rect<DKK, USD>. *)
   Instance TransSerial : Serializable TransM := _.
   Instance TraceSerial : Serializable TraceM := _.
   Instance Op_serializable : Serializable Op :=
     Derive Serializable Op_rect <Add, Sub, Mult, Div, And, Or, Less, Leq, Equal, Not, Neg, BLit, ZLit, Cond>.
   Instance instruction_serializable : Serializable instruction :=
-    Derive Serializable instruction_rect<IPushZ, IPushB, IObs, IOp, IAcc, IVar>.
+    Derive Serializable instruction_rect<IPushZ, IPushB, IObs, IOp, IAccStart1,
+    IAccStart2, IAccStep, IAccEnd, IVar>.
    Instance Env_Serializable : Serializable Env := _.
   Instance CInstruction_serializable : Serializable CInstruction := 
-    Derive Serializable CInstruction_rect< CIZero, CITransfer, CIScale, CIBoth, CITranslate, CILet, CIIf>.
+    Derive Serializable CInstruction_rect< CIZero, CITransfer, CIScale, CIBoth, CITranslate,
+    CITranslateEnd, CILet, CILetEnd, CIIf, CIThen, CIIfEnd>.
   Instance SetupSerial : Serializable Setup :=
     Derive Serializable Setup_rect<build_setup>.
   Instance StateSerial : Serializable State :=

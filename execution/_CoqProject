@@ -31,3 +31,4 @@ theories/Serializable.v
 CLInterp/CLIPrelude.v
 CLInterp/CLIUtils.v
 CLInterp/CLITranslate.v
+CLInterp/CLInterp.v

@@ -592,13 +592,10 @@ Proof.
   rewrite AdvanceMapSound. reflexivity. 
 Qed.
 
-Axiom ExtrensicEqualityMaps: forall  (m1 m2 : ExtMap),
-    (forall (k : (ObsLabel * Z)), FMap.find k m1 = FMap.find k m2) ->
-               m1 = m2.
                                
 Lemma AdvanceMap2 : forall (ext : ExtMap),
     adv_map 0 ext = ext.
-Proof. intros. apply (ExtrensicEqualityMaps (adv_map 0 ext) ext). intro.
+Proof. intros. apply (FMap.ext_eq (adv_map 0 ext) ext). intro.
        destruct k. replace (FMap.find (o, z) ext) with (FMap.find (o, (0 + z)) ext).
        symmetry.
        apply AdvanceMapSound.
@@ -607,7 +604,7 @@ Qed.
 
 Lemma AdvanceMap3 : forall (z1 z2: Z) (ext : ExtMap),
     adv_map z2 (adv_map z1 ext) = adv_map (z2 + z1) ext.
-Proof. intros. apply ExtrensicEqualityMaps. intro. destruct k.
+Proof. intros. apply FMap.ext_eq. intro. destruct k.
        rewrite <- AdvanceMapSound. rewrite <- AdvanceMapSound.
        replace (z1 + (z2 + z)) with ((z2 + z1) + z) by lia. apply AdvanceMapSound.
 Qed.       
