@@ -251,6 +251,16 @@ Definition delay_traceM (d : nat) (e : TraceM) : TraceM
 Definition scale_transM (z : Z) (e : TransM) : TransM
   := FMap.of_list (scale_trans_list z (FMap.elements e)).
 
+Definition scale_trace_elem (z : Z) (x : nat * TransM) : ( nat * TransM) 
+  := base.prod_map id (fun t : TransM => scale_transM z t) x.
+
+Definition scale_trace_list (z : Z) (xs : list (nat * TransM))
+  : list (nat * TransM)
+  := map (scale_trace_elem z) xs.
+
+Definition scale_traceM (z : Z) (e : TraceM) : TraceM
+  := FMap.of_list (scale_trace_list z (FMap.elements e)).
+
 Lemma prod_map_compose_fst { A A' B B' } (f : A -> A') (g : B -> B'):
   compose fst  (base.prod_map f g) = compose f  fst.
  unfold compose. apply functional_extensionality. intros. unfold base.prod_map. cbn. reflexivity.
@@ -275,20 +285,21 @@ Proof. intro. induction a using Z.peano_ind; intros.
        - repeat rewrite Z.mul_succ_l in H0.
  *)
 
-Lemma scale_trans_list_sound l k1 k2 k3 v z :
-  In ((k1, k2, k3), v) l ->
-  In ((k1, k2, k3), z * v) (scale_trans_list z l).
+
+Lemma scale_trans_list_sound l k v z :
+  In (k, v) l ->
+  In (k, z * v) (scale_trans_list z l).
 Proof. intro.
   induction l; auto; intros.
   - inversion H.
-    + destruct a. destruct p. destruct p. cbn.
+    + destruct a. 
       left. inversion H0. unfold scale_trans_elem. unfold base.prod_map. cbn. reflexivity.
     + right. apply IHl in H0. apply H0.
 Qed.
 
-Lemma scale_trans_list_aux l k1 k2 k3 z v:
-  In ((k1, k2, k3), v) (scale_trans_list z l) ->
-  (exists v', In ((k1, k2, k3), v') l).
+Lemma scale_trans_list_aux l k z v:
+  In (k, v) (scale_trans_list z l) ->
+  (exists v', In (k, v') l).
 Proof.
   intro. induction l. cbn in H.
   - contradiction.
@@ -296,12 +307,11 @@ Proof.
     unfold base.prod_map in H0. cbn in H0. inversion H0.
     + exists (z0). left. reflexivity.
     + apply IHl in H0. destruct H0. exists x. right. apply H0.
-Qed.
-  
+Qed.  
 
-Lemma scale_trans_list_none l k1 k2 k3 z :
-  (forall v, ~ In ((k1, k2, k3), v) l) ->
-  (forall v, ~ In ((k1, k2, k3), v) (scale_trans_list z l)).
+Lemma scale_trans_list_none l k z :
+  (forall v, ~ In (k, v) l) ->
+  (forall v, ~ In (k, v) (scale_trans_list z l)).
 Proof. intros. intro. 
        apply scale_trans_list_aux in H0. destruct H0.
        destruct H with (v:=x).
@@ -395,6 +405,30 @@ Proof.
   intros. lia. apply H. 
 Qed.
 
+
+Lemma ScaleTransSomeSound : forall (t : TransM) (z s: Z) (k : (Party * Party * Asset)),
+    FMap.find k t = Some z -> FMap.find k (scale_transM s t) = Some (s * z).
+Proof. intros. apply FMap.In_elements in H. apply FMap.In_elements.
+       unfold scale_transM.
+       assert (H1: Permutation (FMap.elements (FMap.of_list (scale_trans_list s (FMap.elements t))))
+                               (scale_trans_list s (FMap.elements t)) ).
+       apply perm_scale_list. apply t. apply FMap.NoDup_keys.
+       apply Permutation_in with (l := (scale_trans_list s (FMap.elements t))).
+       apply Permutation_sym in H1. apply H1. apply scale_trans_list_sound. apply H.
+Qed.
+
+Lemma ScaleTransNoneSound : forall (t : TransM) (s: Z) (k : (Party * Party * Asset)),
+    FMap.find k t = None -> FMap.find k (scale_transM s t) = None.
+Proof. intros. assert (H1: (forall v, ~ In (k, v) (FMap.elements t))). apply FMap.not_In_elements. apply H.
+       apply FMap.not_In_elements. unfold scale_transM.
+       assert (H2: Permutation (FMap.elements (FMap.of_list (scale_trans_list s (FMap.elements t))))
+                               (scale_trans_list s (FMap.elements t))).
+       apply perm_scale_list. apply t. apply FMap.NoDup_keys.
+       intros. intro.
+       apply Permutation_in with (l' := (scale_trans_list s (FMap.elements t))) in H0.
+       - apply scale_trans_list_none with (z:=s) (v:=v) in H1. auto.
+       - apply H2.
+Qed.
 
 Lemma DelayTraceMSound : forall (trace: TraceM) (d i: nat),
 FMap.find i trace = FMap.find (i + d)%nat (delay_traceM d trace).
@@ -493,10 +527,6 @@ Definition add_trans : Trans -> Trans -> Trans := fun t1 t2 p1 p2 c => (t1 p1 p2
 Definition add_transM  (t1 t2 : TransM) : TransM :=
   FMap.union_with (fun z1 z2 => Some (z1 + z2)) t1 t2.
 
-Fixpoint scale_transM (s : Z) (t : TransM) :=
-  let keys := FMap.keys t in
-  List.fold_right (fun (k: (Party * Party * Asset)) (tacc: TransM)   => FMap.alter (fun z => s * z) k tacc) t keys.
-
 Definition scale_trans : Z -> Trans -> Trans := fun s t p1 p2 c => (t p1 p2 c * s).
 
 Definition Trace := nat -> Trans.
@@ -518,9 +548,6 @@ Definition singleton_traceM (t: TransM) : TraceM := FMap.add 0%nat t empty_trace
 Definition scale_trace (s : Z) (t : Trace) : Trace
   := fun x => scale_trans s  (t x).
 
-Fixpoint scale_traceM (s : Z) (t : TraceM) :=
-  let keys := FMap.keys t in
-  List.fold_right (fun  (k: nat) (tacc: TraceM) => FMap.alter (fun trans => scale_transM s trans) k tacc) t keys.
 
 Definition delay_trace (d : nat) (t : Trace) : Trace :=
   fun x => if (leb d x)
