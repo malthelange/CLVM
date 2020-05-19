@@ -5,6 +5,7 @@ vendor/record-update/RecordSet.v
 vendor/record-update/RecordUpdate.v
 
 -R execution/theories ConCert.Execution
+-R execution/CLInterp ConCert.CL
 execution/theories/Automation.v
 execution/theories/Blockchain.v
 execution/theories/BoundedN.v
@@ -28,6 +29,10 @@ execution/theories/LocalBlockchain.v
 execution/theories/Monads.v
 execution/theories/ResultMonad.v
 execution/theories/Serializable.v
+execution/CLInterp/CLIPrelude.v
+execution/CLInterp/CLITranslate.v
+execution/CLInterp/CLInterp.v
+
 
 -Q embedding/theories ConCert.Embedding
 embedding/theories/Ast.v

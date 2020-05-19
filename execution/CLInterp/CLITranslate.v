@@ -1649,3 +1649,4 @@ Theorem TranslateContractSound : forall (c : Contr) (env : Env) (extM : ExtMap) 
     apply H3. cbn in H4. rewrite app_nil_r in H4. apply H4.
   - intros. cbn in H1. rewrite app_nil_r in H1. apply H1. apply H2.
 Qed.
+Close Scope Z.
