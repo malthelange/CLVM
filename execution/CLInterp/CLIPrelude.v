@@ -285,6 +285,16 @@ Proof. intro. induction a using Z.peano_ind; intros.
        - repeat rewrite Z.mul_succ_l in H0.
  *)
 
+Lemma scale_trace_list_sound l k t z :
+  In (k, t) l ->
+  In (k, scale_transM z t) (scale_trace_list z l).
+Proof. intro.
+  induction l; auto; intros.
+  - inversion H.
+    + destruct a. 
+      left. inversion H0. unfold scale_trans_elem. unfold base.prod_map. cbn. reflexivity.
+    + right. apply IHl in H0. apply H0.
+Qed.
 
 Lemma scale_trans_list_sound l k v z :
   In (k, v) l ->
@@ -296,6 +306,18 @@ Proof. intro.
       left. inversion H0. unfold scale_trans_elem. unfold base.prod_map. cbn. reflexivity.
     + right. apply IHl in H0. apply H0.
 Qed.
+
+Lemma scale_trace_list_aux l k z t:
+  In (k, t) (scale_trace_list z l) ->
+  (exists t', In (k, t') l).
+Proof.
+  intro. induction l. cbn in H.
+  - contradiction.
+  - inversion H. destruct a. unfold scale_trace_elem in H0.
+    unfold base.prod_map in H0. cbn in H0. inversion H0.
+    + exists (t0). left. reflexivity.
+    + apply IHl in H0. destruct H0. exists x. right. apply H0.
+Qed.  
 
 Lemma scale_trans_list_aux l k z v:
   In (k, v) (scale_trans_list z l) ->
@@ -314,6 +336,15 @@ Lemma scale_trans_list_none l k z :
   (forall v, ~ In (k, v) (scale_trans_list z l)).
 Proof. intros. intro. 
        apply scale_trans_list_aux in H0. destruct H0.
+       destruct H with (v:=x).
+       apply H0.
+Qed.
+
+Lemma scale_trace_list_none l k z :
+  (forall v, ~ In (k, v) l) ->
+  (forall v, ~ In (k, v) (scale_trace_list z l)).
+Proof. intros. intro. 
+       apply scale_trace_list_aux in H0. destruct H0.
        destruct H with (v:=x).
        apply H0.
 Qed.
@@ -382,6 +413,17 @@ Proof.
   intros. auto. apply H.
 Qed.
 
+Lemma perm_scale_traceM_list (m : FMap nat TransM) (d : Z)
+      (l : list (nat * TransM)):
+  NoDup (map fst l) ->
+  Permutation (FMap.elements (FMap.of_list (scale_trace_list d l))) (scale_trace_list d l).
+Proof.
+  intros. apply FMap.elements_of_list.  unfold scale_trace_list.
+  rewrite map_map_compose. unfold scale_trace_elem. rewrite prod_map_compose_fst.
+  rewrite <- map_map_compose. apply FinFun.Injective_map_NoDup. unfold FinFun.Injective.
+  intros. auto. apply H.
+Qed.
+
 Lemma perm_adv_list (m : FMap (ObsLabel * Z) Val) (d : Z)
       (l : list (ObsLabel * Z * Val)):
   NoDup (map fst l) ->
@@ -417,6 +459,17 @@ Proof. intros. apply FMap.In_elements in H. apply FMap.In_elements.
        apply Permutation_sym in H1. apply H1. apply scale_trans_list_sound. apply H.
 Qed.
 
+Lemma ScaleTraceSomeSound : forall (t : TraceM) (s: Z) (v: TransM) (k : nat),
+    FMap.find k t = Some v -> FMap.find k (scale_traceM s t) = Some (scale_transM s v).
+Proof. intros. apply FMap.In_elements in H. apply FMap.In_elements.
+       unfold scale_traceM.
+       assert (H1: Permutation (FMap.elements (FMap.of_list (scale_trace_list s (FMap.elements t))))
+                               (scale_trace_list s (FMap.elements t)) ).
+       apply perm_scale_traceM_list. apply t. apply FMap.NoDup_keys.
+       apply Permutation_in with (l := (scale_trace_list s (FMap.elements t))).
+       apply Permutation_sym in H1. apply H1. apply scale_trace_list_sound. apply H.
+Qed.
+
 Lemma ScaleTransNoneSound : forall (t : TransM) (s: Z) (k : (Party * Party * Asset)),
     FMap.find k t = None -> FMap.find k (scale_transM s t) = None.
 Proof. intros. assert (H1: (forall v, ~ In (k, v) (FMap.elements t))). apply FMap.not_In_elements. apply H.
@@ -427,6 +480,19 @@ Proof. intros. assert (H1: (forall v, ~ In (k, v) (FMap.elements t))). apply FMa
        intros. intro.
        apply Permutation_in with (l' := (scale_trans_list s (FMap.elements t))) in H0.
        - apply scale_trans_list_none with (z:=s) (v:=v) in H1. auto.
+       - apply H2.
+Qed.
+
+Lemma ScaleTraceNoneSound : forall (t : TraceM) (s: Z) (k : nat),
+    FMap.find k t = None -> FMap.find k (scale_traceM s t) = None.
+Proof. intros. assert (H1: (forall v, ~ In (k, v) (FMap.elements t))). apply FMap.not_In_elements. apply H.
+       apply FMap.not_In_elements. unfold scale_traceM.
+       assert (H2: Permutation (FMap.elements (FMap.of_list (scale_trace_list s (FMap.elements t))))
+                               (scale_trace_list s (FMap.elements t))).
+       apply perm_scale_traceM_list. apply t. apply FMap.NoDup_keys.
+       intros. intro.
+       apply Permutation_in with (l' := (scale_trace_list s (FMap.elements t))) in H0.
+       - apply scale_trace_list_none with (z:=s) (v:=v) in H1. auto.
        - apply H2.
 Qed.
 

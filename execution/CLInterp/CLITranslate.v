@@ -1255,7 +1255,13 @@ Lemma ScaleEqual:
 Proof.
   intros z x. unfold traceMtoTrace. unfold lookupTraceM.
   repeat (apply functional_extensionality; intro). cbn. unfold scale_trace. unfold scale_trans.
-Admitted.
+  destruct (FMap.find x0 x) eqn:Eq1.
+  - apply ScaleTraceSomeSound with (s := z) in Eq1. rewrite Eq1.
+    unfold lookup_transM. destruct (FMap.find (x1, x2, x3) t) eqn:Eq2.
+    + apply ScaleTransSomeSound with (s:=z) in Eq2. rewrite Eq2. lia.
+    + apply ScaleTransNoneSound with (s:=z) in Eq2. rewrite Eq2. lia.
+  - apply ScaleTraceNoneSound with (s:=z) in Eq1. rewrite Eq1. lia.
+Qed.
 
   
 Lemma DelayEqual:
@@ -1269,12 +1275,12 @@ Proof.
   - assert (H: FMap.find x0 (delay_traceM n x) = FMap.find ((x0 - n)%nat) x ).
     rewrite Nat.leb_le in Eq1. 
     assert (x0 = (x0 - n) + n)%nat by lia.
-    rewrite H0. rewrite <- DelayTraceMSound with (d:=n).
+    rewrite H. rewrite <- DelayTraceMSound with (d:=n).
     replace ((x0 - n + n - n)%nat) with (x0 - n)%nat by lia.  reflexivity.
     rewrite H. reflexivity.
   - rewrite Nat.leb_nle in Eq1. assert (n > x0)%nat by lia.
     rewrite DelayTraceMNone. unfold empty_trans. reflexivity.
-    apply H0.
+    apply H.
 Qed.
    
 Lemma AdvanceExtNeutral : forall (ext : ExtEnv),
