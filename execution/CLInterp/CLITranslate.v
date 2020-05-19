@@ -380,7 +380,7 @@ Fixpoint stack_within_sem  (expis : list instruction) (i : nat)  (env : Env) (rc
      end.
 
 
-(** Definition of semantics for CLVM, parameters are in reverse polish notation *)
+(** Definition of semantics for CLVM *)
 Fixpoint StackCInterp (instrs : list CInstruction) (stack : list (option TraceM))
          (env : Env) (exts: list ExtMap) (w_stack : list nat) (bf : nat): option TraceM :=
   match instrs with

@@ -91,7 +91,7 @@ Section Interp.
       The receive method of the contract.
       When an environment and a time is received, if the new time is greater that what
       has previously been evaluated, then the contract is evluated according to the 
-      environment. The section of the trace between the this evaluation and the last
+      environment. The section of the trace between is then evaluation and the last
       is recorded for use by the ContractManager.
    *)  
 
