@@ -19,7 +19,6 @@ Then MetaCoq and bignums:
 
 ```bash
 opam repo add coq-released https://coq.inria.fr/opam/released
-opam install coq-metacoq.1.0~alpha+8.11
 opam install coq-bignums
 ```
 And std++:
@@ -28,6 +27,8 @@ And std++:
 opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
 opam install coq-stdpp
 ```
+
+Install MetaCoq from this [MetaCoq's fork](https://github.com/annenkov/template-coq/tree/coq-8.11-erase-annotated). Follow the instructions from the [official MetaCoq repo](https://github.com/MetaCoq/metacoq#installing-from-github-repository-for-developers).
 
 After completing the procedures above, run `make` to build the development, and
 `make html` to build the documentation. The documentation will be located in the
@@ -44,7 +45,6 @@ contract execution layer, which allows reasoning about interacting contracts.
 The [CL Interpreter](execution/CLInterp) folder contains the CL interpreter and theory.
 
 The [extraction](extraction/) folder contains a printing procedure for the deep embedding into the Liquidity syntax. For extraction using MetaCoq's **certified erasure** see the [extract-cert](https://github.com/AU-COBRA/ConCert/tree/extract-cert) branch (requires [MetaCoq's fork](https://github.com/annenkov/template-coq/tree/coq-8.11-erase-annotated) to compile).
-
 
 ## Notes for developers
 
