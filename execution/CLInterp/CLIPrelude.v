@@ -16,6 +16,7 @@ Require Import Coq.micromega.Lia.
 Require Import Serializable.
 From RecordUpdate Require Import RecordUpdate.
 Import RecordSetNotations.
+Require Import Coq.Logic.Classical_Prop.
 
 Open Scope Z.
 (** Basic datatypes needed for CL and CLVM *)
@@ -226,6 +227,9 @@ Definition adv_elem (d : Z) ( x : ObsLabel * Z * Val) : ObsLabel * Z * Val
 Definition delay_elem (d : nat) ( x : nat * TransM) : nat * TransM
   := base.prod_map (fun n => (n + d)%nat) id x.
 
+Definition scale_trans_elem (z : Z) ( x : Party * Party * Asset * Z) : (Party * Party * Asset * Z)
+  := base.prod_map id (fun z' : Z => z * z' ) x.
+
 Definition adv_list (d : Z) (xs : list (ObsLabel * Z * Val))
   : list (ObsLabel * Z * Val)
   := map (adv_elem d) xs.
@@ -234,11 +238,18 @@ Definition delay_list (d : nat) (xs : list (nat * TransM))
   : list (nat * TransM)
   := map (delay_elem d) xs.
 
+Definition scale_trans_list (z : Z) (xs : list (Party * Party * Asset * Z))
+  : list (Party * Party * Asset * Z)
+  := map (scale_trans_elem z) xs.
+
 Definition adv_map (d : Z) (e : ExtMap) : ExtMap
   := FMap.of_list (adv_list d (FMap.elements e)).
 
 Definition delay_traceM (d : nat) (e : TraceM) : TraceM
   := FMap.of_list (delay_list d (FMap.elements e)).
+
+Definition scale_transM (z : Z) (e : TransM) : TransM
+  := FMap.of_list (scale_trans_list z (FMap.elements e)).
 
 Lemma prod_map_compose_fst { A A' B B' } (f : A -> A') (g : B -> B'):
   compose fst  (base.prod_map f g) = compose f  fst.
@@ -256,6 +267,46 @@ Proof.
 Qed.
 
 Definition exmp : ExtMap := FMap.empty.
+(*
+Lemma ArithAuth : forall  (a b c : Z),
+    a <> 0 -> a * b = a * c -> b = c.
+Proof. intro. induction a using Z.peano_ind; intros.
+       - lia.
+       - repeat rewrite Z.mul_succ_l in H0.
+ *)
+
+Lemma scale_trans_list_sound l k1 k2 k3 v z :
+  In ((k1, k2, k3), v) l ->
+  In ((k1, k2, k3), z * v) (scale_trans_list z l).
+Proof. intro.
+  induction l; auto; intros.
+  - inversion H.
+    + destruct a. destruct p. destruct p. cbn.
+      left. inversion H0. unfold scale_trans_elem. unfold base.prod_map. cbn. reflexivity.
+    + right. apply IHl in H0. apply H0.
+Qed.
+
+Lemma scale_trans_list_aux l k1 k2 k3 z v:
+  In ((k1, k2, k3), v) (scale_trans_list z l) ->
+  (exists v', In ((k1, k2, k3), v') l).
+Proof.
+  intro. induction l. cbn in H.
+  - contradiction.
+  - inversion H. destruct a. destruct p. destruct p. unfold scale_trans_elem in H0.
+    unfold base.prod_map in H0. cbn in H0. inversion H0.
+    + exists (z0). left. reflexivity.
+    + apply IHl in H0. destruct H0. exists x. right. apply H0.
+Qed.
+  
+
+Lemma scale_trans_list_none l k1 k2 k3 z :
+  (forall v, ~ In ((k1, k2, k3), v) l) ->
+  (forall v, ~ In ((k1, k2, k3), v) (scale_trans_list z l)).
+Proof. intros. intro. 
+       apply scale_trans_list_aux in H0. destruct H0.
+       destruct H with (v:=x).
+       apply H0.
+Qed.
 
 Lemma map_adv_list_sound l k1 k2 v d :
   In ((k1, k2), v) (adv_list d l) <->
@@ -310,6 +361,17 @@ Proof.
   cbn. rewrite IHl. reflexivity.
 Qed.
 
+Lemma perm_scale_list (m : FMap (Party * Party * Asset) Z) (d : Z)
+      (l : list (Party * Party * Asset * Z)):
+  NoDup (map fst l) ->
+  Permutation (FMap.elements (FMap.of_list (scale_trans_list d l))) (scale_trans_list d l).
+Proof.
+  intros. apply FMap.elements_of_list.  unfold scale_trans_list.
+  rewrite map_map_compose. unfold scale_trans_elem. rewrite prod_map_compose_fst.
+  rewrite <- map_map_compose. apply FinFun.Injective_map_NoDup. unfold FinFun.Injective.
+  intros. auto. apply H.
+Qed.
+
 Lemma perm_adv_list (m : FMap (ObsLabel * Z) Val) (d : Z)
       (l : list (ObsLabel * Z * Val)):
   NoDup (map fst l) ->
@@ -332,6 +394,7 @@ Proof.
   apply FinFun.Injective_map_NoDup. unfold FinFun.Injective.
   intros. lia. apply H. 
 Qed.
+
 
 Lemma DelayTraceMSound : forall (trace: TraceM) (d i: nat),
 FMap.find i trace = FMap.find (i + d)%nat (delay_traceM d trace).
@@ -432,7 +495,7 @@ Definition add_transM  (t1 t2 : TransM) : TransM :=
 
 Fixpoint scale_transM (s : Z) (t : TransM) :=
   let keys := FMap.keys t in
-  List.fold_left (fun (tacc: TransM) (k: (Party * Party * Asset)) => FMap.alter (fun z => s * z) k tacc) keys t.
+  List.fold_right (fun (k: (Party * Party * Asset)) (tacc: TransM)   => FMap.alter (fun z => s * z) k tacc) t keys.
 
 Definition scale_trans : Z -> Trans -> Trans := fun s t p1 p2 c => (t p1 p2 c * s).
 
@@ -457,7 +520,7 @@ Definition scale_trace (s : Z) (t : Trace) : Trace
 
 Fixpoint scale_traceM (s : Z) (t : TraceM) :=
   let keys := FMap.keys t in
-  List.fold_left (fun (tacc: TraceM) (k: nat) => FMap.alter (fun trans => scale_transM s trans) k tacc) keys t.
+  List.fold_right (fun  (k: nat) (tacc: TraceM) => FMap.alter (fun trans => scale_transM s trans) k tacc) t keys.
 
 Definition delay_trace (d : nat) (t : Trace) : Trace :=
   fun x => if (leb d x)

@@ -1248,26 +1248,15 @@ Proof.
       apply FMap.find_empty. rewrite H0. unfold empty_trans. reflexivity.
 Qed.      
 
-Context {K V : Type} `{countable.Countable K}.
-
-Lemma FoldLeftAlter : forall (m : FMap K V) (v : V) (k: K) (f : V -> V),
-    FMap.find k m = Some v ->
-    FMap.find k
-              (List.fold_left (fun (macc: (FMap K V)) (k: K) => FMap.alter f k macc) (FMap.keys m) m) =
-    Some (f v).
-Proof.
-  intro. induction m using FMap.ind; intros. 
-  - rewrite FMap.find_empty in H0. discriminate.
-  - unfold FMap.keys. Admitted.
 
 Lemma ScaleEqual:
   forall (z : Z) (x : TraceM),
     traceMtoTrace (scale_traceM z x) 0 = scale_trace z (traceMtoTrace x 0).
 Proof.
   intros z x. unfold traceMtoTrace. unfold lookupTraceM.
-  repeat (apply functional_extensionality; intro). cbn.
-  unfold scale_traceM. unfold scale_trace. unfold scale_trans. Admitted.
-  
+  repeat (apply functional_extensionality; intro). cbn. unfold scale_trace. unfold scale_trans.
+Admitted.
+
   
 Lemma DelayEqual:
   forall (n : nat) (t0 : Trace) (x : TraceM),
