@@ -217,4 +217,6 @@ Run TemplateProgram (ps <- monad_map erasable_program (List.rev INTERP_MODULE.(l
                      res <- tmEval all env ;;
                      tmDefinition "GE" res).
 
+Time Run TemplateProgram (printLiquidityModule PREFIX GE TT INTERP_MODULE).
+
 Print liquidity_stack_interp.
