@@ -53,7 +53,7 @@ Definition DKK : Asset := 1%nat.
 Definition AAPL : ObsLabel := LabZ 1.
 Definition e : Exp := Obs AAPL 0.
 
-Definition partial_test : Contr := DKK(|p1 ---> p2|) & ( DKK(|q1 ---> q2|)).
+Definition partial_test : Contr := DKK(|p1 ---> p2|) & (e × DKK(|q1 ---> q2|)).
 Definition l := do l <- CompileC partial_test; Some l.
 Compute l.
 Definition res := do l <- CompileC partial_test;
