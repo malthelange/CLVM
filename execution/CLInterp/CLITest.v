@@ -45,6 +45,22 @@ Definition extm_exmp1 : FMap (ObsLabel * Z) Val := FMap.add ((LabZ 1),4) (ZVal 2
 
 Compute ext_exmp1 (LabB 0) 4.
 
+Definition p1 : Party := 1%nat.
+Definition p2 : Party := 2%nat.
+Definition q1 : Party := 3%nat.
+Definition q2 : Party := 4%nat.
+Definition DKK : Asset := 1%nat.
+Definition AAPL : ObsLabel := LabZ 1.
+Definition e : Exp := Obs AAPL 0.
+
+Definition partial_test : Contr := DKK(|p1 ---> p2|) & ( DKK(|q1 ---> q2|)).
+Definition l := do l <- CompileC partial_test; Some l.
+Compute l.
+Definition res := do l <- CompileC partial_test;
+                  do t <- vmPartial l [] FMap.empty; Some ((traceMtoTrace t 0) 0%nat p1 p2 DKK).
+Compute res.
+
+
 Definition lit10 := OpE (ZLit 10) [].
 Definition lit3 := OpE (ZLit 3) [].
 Definition lit4 := OpE (ZLit 4) [].

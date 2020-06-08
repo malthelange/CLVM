@@ -519,8 +519,7 @@ Fixpoint StackCPartial (instrs : list CInstruction) (stack : list (option TraceM
                             | t::tl2 =>
                               do t' <- t;
                               do et <- hd_error exts;
-                              do v <- (StackEInterp expis [] env et true);
-                              match toZ v with
+                              match do v <- (StackEInterp expis [] env et true); toZ v with
                               | Some z =>  StackCPartial tl (Some(scale_traceM z t')::tl2) env exts w_stack bf be
                               | None => StackCPartial tl (Some (empty_traceM)::tl2) env exts w_stack bf be
                               end
