@@ -57,7 +57,7 @@ Definition partial_test : Contr := DKK(|p1 ---> p2|) & (e × DKK(|q1 ---> q2|)).
 Definition l := do l <- CompileC partial_test; Some l.
 Compute l.
 Definition res := do l <- CompileC partial_test;
-                  do t <- vmPartial l [] FMap.empty; Some ((traceMtoTrace t 0) 0%nat p1 p2 DKK).
+                  do t <- vmPartial l [] FMap.empty; Some ((traceMtoTrace t 0) 0%nat q1 q2 DKK).
 Compute res.
 
 
