@@ -101,7 +101,7 @@ Section Interp.
     : option (State * list ActionBody) :=
     match msg with
     | Some (update ext t) => if (Nat.ltb (currentTime state) t) then 
-                              Some (state<|result := do trace <- (vmPartial (contract state) [] ext);
+                              Some (state<|result := do trace <- (vmC (contract state) [] ext);
                                                      Some (cutTrace trace (currentTime state) t)|>
                                                      <|currentTime := t |>, [])
                             else

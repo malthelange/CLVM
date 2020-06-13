@@ -211,7 +211,10 @@ Definition ExtEnv := ExtEnv' Val.
 Definition ExtMap := FMap (ObsLabel * Z) Val.
 
 Definition ExtMap_to_ExtEnv (extM : ExtMap) : ExtEnv := fun l i => match FMap.find (l,i) extM with
-                                                                   | None => ZVal 0
+                                                                | None => match l with
+                                                                         | LabZ _ => ZVal 0
+                                                                         | LabB _ => BVal false
+                                                                         end
                                                                    | Some v => v
                                                                 end.
 
@@ -538,7 +541,7 @@ Qed.
 Lemma AdvanceMapSound : forall (ext: ExtMap) (d i: Z) (l : ObsLabel),
 FMap.find (l,d + i) ext = FMap.find (l,i) (adv_map d ext).
 Proof. intros. destruct (FMap.find _ _) eqn:find.
-  - apply FMap.In_elements in find.
+  - apply FMap.In_elements in find. 
     symmetry.
     apply FMap.In_elements.
     rewrite Z.add_comm in find.
@@ -550,10 +553,10 @@ Proof. intros. destruct (FMap.find _ _) eqn:find.
     apply H.
     apply map_adv_list_sound. apply find.
    - symmetry.
-    rewrite <- FMap.not_In_elements with (k:= (l, d + i)) (m := ext) in find.
+    rewrite <- FMap.not_In_elements with (k:= (l, d + i)) (m := ext) in find. 
     apply FMap.not_In_elements.
     intros v isin.
-    specialize (find v).
+     specialize (find v).
     rewrite Z.add_comm in find.
     unfold adv_map in isin.
         assert (H: Permutation (FMap.elements (FMap.of_list (adv_list d (FMap.elements ext))))

@@ -280,10 +280,14 @@ Definition pop3 (l : list (Env -> ExtMap -> option Val)) (env : Env) (ext : ExtM
 Definition Fsem_stack {A} (f : Env -> ExtMap -> option A) (env : Env) (ext : ExtMap) 
   := (fun m x => x >>= fun x' =>  f (x' :: env) (adv_map (Z.of_nat m) ext)).
 
-Definition find_default (k : (ObsLabel * Z)) (ext : ExtMap) (default : Val) : Val := match (FMap.find k ext) with
-                                                                                     | None => default
-                                                                                     | Some v => v
-                                                                                     end.
+Definition find_default (k : (ObsLabel * Z)) (ext : ExtMap) : Val :=
+  match (FMap.find k ext) with
+  | None => match k with
+           | ((LabZ n),_) => (ZVal 0)
+           | ((LabB b),_) => (BVal false)
+           end
+  | Some v => v
+  end.
 
 (** Definition of expression semantics in CLVM, parameters are in reverse polish notation.
     When we don't evaluate partially we can expect the environment to be complete and return
@@ -299,7 +303,7 @@ Fixpoint StackEInterp (instrs : list instruction) (stack : list (option Val)) (e
     | IObs l i => if partial then
                    StackEInterp tl ((FMap.find (l,i) ext)::stack) env ext partial
                  else
-                   StackEInterp tl ((Some (find_default (l,i) ext (ZVal 0)))::stack) env ext partial
+                   StackEInterp tl ((Some (find_default (l,i) ext))::stack) env ext partial
     | IOp op => match op with
                | Add => match stack with
                        | (Some (ZVal z1))::(Some (ZVal z2))::tl2 =>
@@ -1144,6 +1148,7 @@ Definition option_traceM_to_Trace (t : option TraceM) (default: Z) : option Trac
 
 Lemma empty_TraceM_empty : forall n, FMap.find n empty_traceM = None.
 Proof. intro. apply FMap.find_empty. Qed.
+
 Lemma addTraceHelp: forall (tm1 tm2 : TraceM),
     traceMtoTrace (add_traceM tm1 tm2) 0 = add_trace (traceMtoTrace tm1 0) (traceMtoTrace tm2 0).
 Proof. intros. unfold traceMtoTrace.
@@ -1219,7 +1224,7 @@ Lemma SingleTraceEqual:
   forall (p p0 : Party) (a : Asset),
     traceMtoTrace (singleton_traceM (singleton_transM p p0 a 1)) 0 =
     singleton_trace (singleton_trans p p0 a 1).
-Proof. 
+Proof.  
   intros. unfold singleton_traceM. unfold singleton_transM.
   unfold singleton_trans. unfold traceMtoTrace. unfold singleton_trace.
   repeat (apply functional_extensionality; intros). unfold lookupTraceM.
@@ -1370,7 +1375,7 @@ Qed.
 Lemma WithinSoundAux : forall (n i : nat) (expis: list instruction) (extM : ExtMap) (env: Env),
     stack_within_sem expis n env extM false = Some (true, i) ->
     (i <= n)%nat.
-Proof.
+Proof. 
   intro. induction n; intros. unfold stack_within_sem in H;
             destruct (StackEInterp expis [] env extM false); try discriminate; destruct v;
               try discriminate. destruct b.
@@ -1441,7 +1446,7 @@ do v <- C[| c1|] env (adv_ext (Z.of_nat (n - i)) (ExtMap_to_ExtEnv extM));
 Some (delay_trace (n - i) v).
 Proof.
   intro. induction n; intros.
-  - cbn in *.
+  - cbn in *. 
     destruct (StackEInterp expis [] env extM false) eqn:Eq1; try discriminate.
     destruct v eqn:Eq2; try discriminate. destruct b eqn:Eq3; try discriminate. inversion H0.
     rewrite <- TranslateExpressionSound with (e := e) in Eq1; auto. rewrite Eq1.
@@ -1456,12 +1461,14 @@ Proof.
       rewrite <- DelayTraceNeutral. reflexivity. reflexivity.
     +  rewrite <- TranslateExpressionSound with (e := e) in Eq1; auto. rewrite Eq1.
        rewrite AdvanceMap1. rewrite IHn with (i := i) (expis := expis).
-       rewrite <- AdvanceMap1. rewrite AdvanceExt1. assert (H2: (i <= n)%nat).
+       * rewrite <- AdvanceMap1. rewrite AdvanceExt1. assert (H2: (i <= n)%nat).
        apply WithinSoundAux with (expis := expis) (extM := adv_map 1 extM) (env := env). apply H0.
        rewrite ArithAux; try apply H2.
        destruct (C[| c1|] env (adv_ext (Z.of_nat (S n - i)) (ExtMap_to_ExtEnv extM))).
        unfold Monads.pure. rewrite DelayTraceAux. rewrite ArithAux1. reflexivity.
-       apply H2. reflexivity. apply H. apply H0.
+       apply H2. reflexivity.
+       * apply H.
+       * apply H0.
 Qed.
 
 Lemma StupidArith:
@@ -1650,7 +1657,6 @@ Proof.
     + cbn. destruct (stack_within_sem l n env extM false) eqn:Eq4.
       destruct (p) eqn:Eq5. destruct b. apply WithinSound with (e := e) (c1 := c1) (c2 := c2) in Eq4.
       rewrite Eq4 in H4. cbn in H4.   
-
         destruct (C[| c1|] env (adv_ext (Z.of_nat (n - n0)) (ExtMap_to_ExtEnv extM))) eqn:Eq7; try discriminate.
       rewrite <- app_assoc. cbn in Eq4. rewrite (IfAux1 c2). cbn.
       destruct (IHc1 env (adv_map (Z.of_nat (n - n0)) extM) (extM::extMs) l0 ([CIIfEnd] ++ l2) stack
@@ -1668,8 +1674,8 @@ Proof.
                        ( (n - n0)%nat :: w_stack)). reflexivity. clear H5. destruct (H3 t0).
         rewrite AdvanceMap1 in Eq6. apply Eq6. destruct H5. rewrite H6. cbn. rewrite <- app_assoc. clear H6 H3.
         rewrite (IfAux1 c1). cbn.  inversion H4.
-        exists (delay_traceM (n - n0) x). split. apply DelayEqual. apply H5. reflexivity. apply Eq2.apply Eq1. 
-      * apply WithinSoundNone with (e:=e) (c1:=c1) (c2:=c2) in Eq4.  rewrite H4 in Eq4. discriminate. apply Eq1.
+        exists (delay_traceM (n - n0) x). split. apply DelayEqual. apply H5. reflexivity. apply Eq2. apply Eq1. 
+      * apply WithinSoundNone with (e:=e) (c1:=c1) (c2:=c2) in Eq4. rewrite H4 in Eq4. discriminate. apply Eq1.
     + cbn. destruct (stack_within_sem l n env extM false) eqn:Eq4.
       destruct (p) eqn:Eq5. destruct b.
       * apply WithinSound with (e := e) (c1 := c1) (c2 := c2) in Eq4. cbn in Eq4.
