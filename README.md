@@ -1,9 +1,11 @@
 # CLVM 
 
 An interpreter for the DSL for financial contracts called CL, written as a smart contract in the ConCert framework. For serialization the CL language is translated
-to a stack based language called CLVM. The goal of this project is to verify the translation in Coq. This repo contains ConCert framework. The CL interpreter is located in execution/CLInterp
+to a stack based language called CLVM. The goal of this project is to verify the translation in Coq. This repo contains is a fork of the ConCert framework. The additions made by our CLVM project is found in
+[CLVM Interpreter](execution/CLInterp). The readme of the folder details the CLVM project structure.
 
-## How to build - From the ConCert documentation
+## How to build
+This is the build procedure described by the developers of the ConCert framwork. 
 
 Our development works with Coq 8.11. and depends on MetaCoq 1.0~alpha2+8.11,
 std++ and coq-bignums. These dependencies can be installed through `opam`.
@@ -29,19 +31,10 @@ opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
 opam install coq-stdpp
 ```
 
-After completing the procedures above, run `make` to build the development, and
-`make html` to build the documentation. The documentation will be located in the
-docs folder after `make html`.
-
+To build this project run "make" in the [execution](execution/) folder.
 ## Structure of the project 
 
-The [embedding](embedding/) folder contains the development of the embedding.
-The [execution](execution/) folder contains the formalization of the smart
-contract execution layer, which allows reasoning about interacting contracts.
+The [embedding](embedding/) folder contains the ConCert development of the embedding.
+The [execution](execution/) folder contains the ConCert formalization of the smart contract execution layer, which allows reasoning about interacting contracts.
 
-The [CL Interpreter](execution/CLInterp) folder contains the CL interpreter and theory.
-
-## Notes for developers
-
-The [execution](execution/) subproject can be built independently via running `make` in the `execution` folder. This also means that the `_CoqProject` file inside the `execution` folder musdt be manually kept in sync with the main `_CoqProject` in the root.
->>>>>>> upstream/master
+The [CLVM Interpreter](execution/CLInterp) folder contains the CLVM compilation scheme and theory.
