@@ -2,7 +2,7 @@
 
 An interpreter for the DSL for financial contracts called CL, written as a smart contract in the ConCert framework. For serialization the CL language is translated
 to a stack based language called CLVM. The goal of this project is to verify the translation in Coq. This repo contains is a fork of the ConCert framework. The additions made by our CLVM project is found in
-[CLVM Interpreter](execution/CLInterp). The readme of the folder details the CLVM project structure.
+[CLVM](execution/CLInterp). The readme of the folder details the CLVM project structure.
 
 ## How to build
 This is the build procedure described by the developers of the ConCert framwork. 
@@ -37,4 +37,4 @@ To build this project run "make" in the [execution](execution/) folder.
 The [embedding](embedding/) folder contains the ConCert development of the embedding.
 The [execution](execution/) folder contains the ConCert formalization of the smart contract execution layer, which allows reasoning about interacting contracts.
 
-The [CLVM Interpreter](execution/CLInterp) folder contains the CLVM compilation scheme and theory.
+The [CLVM](execution/CLInterp) folder contains the CLVM compilation scheme and theory.
